@@ -341,20 +341,22 @@
     const scoreTop = H * MARGIN;
     const scoreBot = H * (1 - MARGIN);
     const scoreH   = scoreBot - scoreTop;
-    const trackH   = scoreH / 3;
+    const thirdH   = scoreH / 3;           // height of each "third"
+    const TRACK_RATIO = 0.55;              // track fills 55% of its third
+    const trackH = thirdH * TRACK_RATIO;
+    const pad    = (thirdH - trackH) / 2;  // padding above/below each track
 
-    // 4 lines at track boundaries (top edge, 2 dividers, bottom edge)
-    lanes = [
-      scoreTop,
-      scoreTop + trackH,
-      scoreTop + trackH * 2,
-      scoreBot,
-    ];
-
-    trackBounds = [
-      { top: scoreTop,              bot: scoreTop + trackH },
-      { top: scoreTop + trackH,     bot: scoreTop + trackH * 2 },
-      { top: scoreTop + trackH * 2, bot: scoreBot },
+    // 3 tracks, each centered in its third
+    trackBounds = [];
+    lanes = [];
+    for (let i = 0; i < 3; i++) {
+      const thirdTop = scoreTop + i * thirdH;
+      const tTop = thirdTop + pad;
+      const tBot = thirdTop + pad + trackH;
+      trackBounds.push({ top: tTop, bot: tBot });
+      lanes.push(tTop);
+      lanes.push(tBot);
+    }
     ];
   }
 
@@ -598,28 +600,32 @@
     ctx.restore();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Margin shading (non-track areas)
+    // Shade non-track areas
     if (trackBounds.length) {
       ctx.fillStyle = 'rgba(255,255,255,0.03)';
-      ctx.fillRect(0, 0, W, trackBounds[0].top);                  // top margin
-      ctx.fillRect(0, trackBounds[2].bot, W, H - trackBounds[2].bot); // bottom margin
+      ctx.fillRect(0, 0, W, trackBounds[0].top);                          // top margin
+      ctx.fillRect(0, trackBounds[0].bot, W, trackBounds[1].top - trackBounds[0].bot); // gap 1-2
+      ctx.fillRect(0, trackBounds[1].bot, W, trackBounds[2].top - trackBounds[1].bot); // gap 2-3
+      ctx.fillRect(0, trackBounds[2].bot, W, H - trackBounds[2].bot);     // bottom margin
     }
 
-    // Staff lines (4 boundaries)
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    // Track boundary lines (6 lines: top/bottom of each track)
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth = 1;
     for (const y of lanes) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
 
-    // Draw zone indicator
+    // Draw zone indicator (one dashed line per track)
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     ctx.setLineDash([5, 10]);
-    ctx.beginPath();
-    ctx.moveTo(W * 0.75, trackBounds[0].top);
-    ctx.lineTo(W * 0.75, trackBounds[2].bot);
-    ctx.stroke();
+    for (const tb of trackBounds) {
+      ctx.beginPath();
+      ctx.moveTo(W * 0.75, tb.top);
+      ctx.lineTo(W * 0.75, tb.bot);
+      ctx.stroke();
+    }
     ctx.restore();
 
     requestAnimationFrame(frame);

@@ -260,6 +260,10 @@
     <div class="vslider-fill" id="vsf-opacity"></div>
     <div class="vslider-label">Opacity</div>
   </div>
+  <div class="vslider" id="vs-speed">
+    <div class="vslider-fill" id="vsf-speed"></div>
+    <div class="vslider-label">Speed</div>
+  </div>
   <button id="btn-brush-panel">&#9998;</button>
 </div>
 
@@ -586,6 +590,10 @@
     brushDot.style.opacity = brushOpacity;
   }
 
+  // Speed refs (needed by both vertical slider and bottom panel)
+  const rSpeed = document.getElementById('r-speed');
+  const vSpeed = document.getElementById('v-speed');
+
   const vsSize = setupVSlider('vs-size', 'vsf-size', 1, 80, maxRadius, v => {
     maxRadius = v;
     updatePreview();
@@ -593,6 +601,11 @@
   const vsOpacity = setupVSlider('vs-opacity', 'vsf-opacity', 0.05, 1, brushOpacity, v => {
     brushOpacity = v;
     updatePreview();
+  });
+  setupVSlider('vs-speed', 'vsf-speed', 0, 6, scrollSpeed, v => {
+    scrollSpeed = v;
+    rSpeed.value = v;
+    vSpeed.textContent = v.toFixed(1);
   });
   updatePreview();
 
@@ -633,8 +646,6 @@
     controls.classList.toggle('visible');
   });
 
-  const rSpeed = document.getElementById('r-speed');
-  const vSpeed = document.getElementById('v-speed');
   rSpeed.addEventListener('input', () => {
     scrollSpeed = parseFloat(rSpeed.value);
     vSpeed.textContent = scrollSpeed.toFixed(1);

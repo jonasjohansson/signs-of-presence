@@ -361,18 +361,8 @@
       ];
       for (let i = 0; i < 3; i++) {
         const tb = trackBounds[i];
-        ctx.globalAlpha = 0.035;
         ctx.fillStyle = trackColors[i];
         ctx.fillRect(W * 0.75, tb.top, W * 0.25, tb.bot - tb.top);
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = trackColors[i];
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(W * 0.75, tb.top);
-        ctx.lineTo(W, tb.top);
-        ctx.moveTo(W * 0.75, tb.bot);
-        ctx.lineTo(W, tb.bot);
-        ctx.stroke();
       }
     }
 

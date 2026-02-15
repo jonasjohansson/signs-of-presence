@@ -64,9 +64,6 @@
     // tilt smoothing
     smTiltCos: 0, smTiltSin: 0, smAspect: 1,
     angle: 0, aspect: 1,
-    // hold-to-grow
-    holdTime: 0,
-    holdX: 0, holdY: 0, holdP: 0,
   };
 
   /* ════════════════════════════════════════════════
@@ -305,10 +302,6 @@
     stroke.smTiltCos = 0;
     stroke.smTiltSin = 0;
     stroke.smAspect = 1;
-    stroke.holdTime = 0;
-    stroke.holdX = x;
-    stroke.holdY = cy;
-    stroke.holdP = p;
     computeTilt(e);
 
     stamp(x, cy, p, 0, stroke.angle, stroke.aspect);
@@ -377,25 +370,6 @@
       if (stroke.active) {
         stroke.prevX -= brush.scrollSpeed;
         stroke.smoothX -= brush.scrollSpeed;
-        stroke.holdX -= brush.scrollSpeed;
-      }
-    }
-
-    // Hold-to-grow: pen down but barely moving → expanding blob
-    if (stroke.active) {
-      const moved = Math.hypot(stroke.smoothX - stroke.holdX, stroke.smoothY - stroke.holdY);
-      if (moved < 3) {
-        stroke.holdTime += 1 / 60;
-        if (stroke.holdTime > 0.15) {
-          const grow = brush.maxRadius * Math.min((stroke.holdTime - 0.15) * 1.2, 4);
-          if (grow > 1) {
-            drawDab(stroke.smoothX, stroke.smoothY, grow, 1, stroke.angle, stroke.aspect);
-          }
-        }
-      } else {
-        stroke.holdTime = 0;
-        stroke.holdX = stroke.smoothX;
-        stroke.holdY = stroke.smoothY;
       }
     }
 

@@ -38,7 +38,7 @@
   let paused = false;
 
   const brush = {
-    maxRadius: 100,
+    maxRadius: 40,
     opacity: 1.0,
     streamline: 0.30,
     pressureCurve: 0.20,
@@ -440,7 +440,7 @@
     brushDot.style.opacity = brush.opacity;
   }
 
-  setupSlider('vs-size', 'vsf-size', 1, 300, brush.maxRadius, v => {
+  setupSlider('vs-size', 'vsf-size', 1, 80, brush.maxRadius, v => {
     brush.maxRadius = v;
     updatePreview();
   });

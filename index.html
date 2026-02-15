@@ -27,8 +27,7 @@
   /* ── Top bar: stylus HUD ── */
   #top-bar {
     position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 12%;
+    top: 6px; left: 20%; right: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -43,34 +42,34 @@
   #top-bar .hl { color: #444; margin-right: 4px; }
   #top-bar .hv { color: #888; font-variant-numeric: tabular-nums; }
 
-  /* ── Bottom bar: controls ── */
-  #bottom-bar {
+  /* ── Left sidebar: controls ── */
+  #sidebar {
     position: fixed;
-    bottom: 0; left: 0; right: 0;
-    height: 12%;
+    left: 0; top: 0; bottom: 0;
+    width: 20%;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 10px;
     z-index: 20;
   }
 
-  /* Horizontal slider */
+  /* Vertical slider */
   .vslider {
     position: relative;
-    width: 120px;
-    height: 30px;
+    width: 30px;
+    height: 140px;
     background: rgba(35,35,35,0.92);
     border-radius: 15px;
     border: 1px solid rgba(255,255,255,0.06);
     overflow: hidden;
-    cursor: ew-resize;
+    cursor: ns-resize;
     touch-action: none;
   }
   .vslider-fill {
     position: absolute;
-    top: 0; left: 0; bottom: 0;
-    width: 0;
+    bottom: 0; left: 0; right: 0;
     background: rgba(255,255,255,0.13);
     border-radius: 15px;
     pointer-events: none;
@@ -79,8 +78,7 @@
     position: absolute;
     width: 100%;
     text-align: center;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 6px;
     font-family: -apple-system, sans-serif;
     font-size: 8px;
     letter-spacing: 0.5px;
@@ -127,12 +125,12 @@
   /* ── Brush settings panel ── */
   #brush-panel {
     position: fixed;
-    bottom: 13%;
-    left: 50%;
-    transform: translateX(-50%) scale(0.95);
+    left: 21%;
+    top: 50%;
+    transform: translateY(-50%) scale(0.95);
     opacity: 0;
     pointer-events: none;
-    width: 280px;
+    width: 250px;
     background: rgba(22,22,22,0.96);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -148,7 +146,7 @@
   #brush-panel.open {
     opacity: 1;
     pointer-events: auto;
-    transform: translateX(-50%) scale(1);
+    transform: translateY(-50%) scale(1);
   }
   .bp-header {
     display: flex;
@@ -219,8 +217,8 @@
   <div class="hud-item"><span class="hl">pos</span><span class="hv" id="s-pos">--</span></div>
 </div>
 
-<!-- Bottom bar: controls -->
-<div id="bottom-bar">
+<!-- Left sidebar: controls -->
+<div id="sidebar">
   <div class="vslider" id="vs-size">
     <div class="vslider-fill" id="vsf-size"></div>
     <div class="vslider-label">Size</div>
@@ -633,13 +631,13 @@
 
     function setVal(v) {
       val = Math.max(min, Math.min(max, v));
-      fill.style.width = ((val - min) / (max - min) * 100) + '%';
+      fill.style.height = ((val - min) / (max - min) * 100) + '%';
       onChange(val);
     }
 
-    function fromX(clientX) {
+    function fromY(clientY) {
       const r = el.getBoundingClientRect();
-      const ratio = (clientX - r.left) / r.width;
+      const ratio = 1 - (clientY - r.top) / r.height;
       setVal(min + ratio * (max - min));
     }
 
@@ -647,9 +645,9 @@
       e.preventDefault(); e.stopPropagation();
       active = true;
       el.setPointerCapture(e.pointerId);
-      fromX(e.clientX);
+      fromY(e.clientY);
     });
-    el.addEventListener('pointermove', e => { if (active) fromX(e.clientX); });
+    el.addEventListener('pointermove', e => { if (active) fromY(e.clientY); });
     el.addEventListener('pointerup', () => active = false);
     el.addEventListener('pointercancel', () => active = false);
 

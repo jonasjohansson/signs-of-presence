@@ -336,18 +336,13 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Layout: margin 10% top/bottom, 3 equal tracks between 3 lines
-    // Lines at the boundaries between tracks
-    const marginY = H * 0.10;
-    const innerH  = H - marginY * 2;       // 80% of height
-    const trackH  = innerH / 3;
-    // 3 lines: top of track area, between track 1-2, between track 2-3
-    lanes = [marginY, marginY + trackH, marginY + trackH * 2, marginY + trackH * 3];
-    // Track bounds for clamping (used in pointer events)
+    // 3 horizontal lines at 25/50/75%
+    lanes = [H * 0.25, H * 0.5, H * 0.75];
+    // 3 drawable tracks: top (0–25%), middle (25–50%), bottom (50–75% + below)
     trackBounds = [
-      { top: marginY,              bot: marginY + trackH },
-      { top: marginY + trackH,     bot: marginY + trackH * 2 },
-      { top: marginY + trackH * 2, bot: marginY + trackH * 3 },
+      { top: 0,        bot: H * 0.25 },
+      { top: H * 0.25, bot: H * 0.5 },
+      { top: H * 0.5,  bot: H },
     ];
   }
 
@@ -498,17 +493,14 @@
     // Only allow drawing in the right 25%
     if (x < W * 0.75) return;
 
-    // Find which track the pen landed in
-    let found = false;
+    // Lock to the track the pen landed in
     for (const tb of trackBounds) {
       if (y >= tb.top && y <= tb.bot) {
         activeTrackTop = tb.top;
         activeTrackBot = tb.bot;
-        found = true;
         break;
       }
     }
-    if (!found) return; // pen is in the margin, ignore
 
     drawing = true;
     const cy = Math.max(activeTrackTop, Math.min(activeTrackBot, y));

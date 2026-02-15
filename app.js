@@ -50,7 +50,7 @@
     tiltInfluence: 0.70,
     scatterRadius: 0,
     scatterDensity: 4,
-    scrollSpeed: 1.5,
+    scrollSpeed: 0.5,
   };
 
   const stroke = {
@@ -450,7 +450,7 @@
     updatePreview();
   });
 
-  setupSlider('vs-speed', 'vsf-speed', 0, 6, brush.scrollSpeed, v => {
+  setupSlider('vs-speed', 'vsf-speed', 0, 2, brush.scrollSpeed, v => {
     brush.scrollSpeed = v;
   });
 

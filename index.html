@@ -336,26 +336,19 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Score area with margins for UI
-    const MARGIN = 0.12;  // 12% top and bottom
-    const scoreTop = H * MARGIN;
-    const scoreBot = H * (1 - MARGIN);
-    const scoreH   = scoreBot - scoreTop;
-    const thirdH   = scoreH / 3;           // height of each "third"
-    const TRACK_RATIO = 0.55;              // track fills 55% of its third
-    const trackH = thirdH * TRACK_RATIO;
-    const pad    = (thirdH - trackH) / 2;  // padding above/below each track
+    // 3 tracks with center lines, margins top/bottom, gaps between
+    const MARGIN  = 0.12;   // 12% top and bottom
+    const GAP     = 0.02;   // 2% gap between tracks
+    const usable  = 1 - MARGIN * 2 - GAP * 2; // remaining for 3 tracks
+    const trackPct = usable / 3;
 
-    // 3 tracks, each centered in its third
     trackBounds = [];
-    lanes = [];
+    lanes = [];  // one center line per track
     for (let i = 0; i < 3; i++) {
-      const thirdTop = scoreTop + i * thirdH;
-      const tTop = thirdTop + pad;
-      const tBot = thirdTop + pad + trackH;
+      const tTop = H * (MARGIN + i * (trackPct + GAP));
+      const tBot = tTop + H * trackPct;
       trackBounds.push({ top: tTop, bot: tBot });
-      lanes.push(tTop);
-      lanes.push(tBot);
+      lanes.push((tTop + tBot) / 2); // center line
     }
   }
 
@@ -599,23 +592,23 @@
     ctx.restore();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Shade non-track areas
+    // Shade non-track areas (margins + gaps)
     if (trackBounds.length) {
-      ctx.fillStyle = 'rgba(255,255,255,0.03)';
-      ctx.fillRect(0, 0, W, trackBounds[0].top);                          // top margin
-      ctx.fillRect(0, trackBounds[0].bot, W, trackBounds[1].top - trackBounds[0].bot); // gap 1-2
-      ctx.fillRect(0, trackBounds[1].bot, W, trackBounds[2].top - trackBounds[1].bot); // gap 2-3
-      ctx.fillRect(0, trackBounds[2].bot, W, H - trackBounds[2].bot);     // bottom margin
+      ctx.fillStyle = 'rgba(255,255,255,0.025)';
+      ctx.fillRect(0, 0, W, trackBounds[0].top);                                       // top
+      ctx.fillRect(0, trackBounds[0].bot, W, trackBounds[1].top - trackBounds[0].bot);  // gap 1-2
+      ctx.fillRect(0, trackBounds[1].bot, W, trackBounds[2].top - trackBounds[1].bot);  // gap 2-3
+      ctx.fillRect(0, trackBounds[2].bot, W, H - trackBounds[2].bot);                   // bottom
     }
 
-    // Track boundary lines (6 lines: top/bottom of each track)
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    // Center line per track
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
     ctx.lineWidth = 1;
     for (const y of lanes) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
 
-    // Draw zone indicator (one dashed line per track)
+    // Draw zone indicator
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     ctx.setLineDash([5, 10]);

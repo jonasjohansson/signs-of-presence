@@ -336,13 +336,25 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // 3 horizontal lines at 25/50/75%
-    lanes = [H * 0.25, H * 0.5, H * 0.75];
-    // 3 drawable tracks: top (0–25%), middle (25–50%), bottom (50–75% + below)
+    // Score area with margins for UI
+    const MARGIN = 0.08;  // 8% top and bottom
+    const scoreTop = H * MARGIN;
+    const scoreBot = H * (1 - MARGIN);
+    const scoreH   = scoreBot - scoreTop;
+    const trackH   = scoreH / 3;
+
+    // 4 lines at track boundaries (top edge, 2 dividers, bottom edge)
+    lanes = [
+      scoreTop,
+      scoreTop + trackH,
+      scoreTop + trackH * 2,
+      scoreBot,
+    ];
+
     trackBounds = [
-      { top: 0,        bot: H * 0.25 },
-      { top: H * 0.25, bot: H * 0.5 },
-      { top: H * 0.5,  bot: H },
+      { top: scoreTop,              bot: scoreTop + trackH },
+      { top: scoreTop + trackH,     bot: scoreTop + trackH * 2 },
+      { top: scoreTop + trackH * 2, bot: scoreBot },
     ];
   }
 
@@ -586,18 +598,28 @@
     ctx.restore();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Staff lines
+    // Margin shading (non-track areas)
+    if (trackBounds.length) {
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      ctx.fillRect(0, 0, W, trackBounds[0].top);                  // top margin
+      ctx.fillRect(0, trackBounds[2].bot, W, H - trackBounds[2].bot); // bottom margin
+    }
+
+    // Staff lines (4 boundaries)
     ctx.strokeStyle = 'rgba(255,255,255,0.22)';
     ctx.lineWidth = 1;
     for (const y of lanes) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
 
-    // Draw zone
+    // Draw zone indicator
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     ctx.setLineDash([5, 10]);
-    ctx.beginPath(); ctx.moveTo(W * 0.75, 0); ctx.lineTo(W * 0.75, H); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(W * 0.75, trackBounds[0].top);
+    ctx.lineTo(W * 0.75, trackBounds[2].bot);
+    ctx.stroke();
     ctx.restore();
 
     requestAnimationFrame(frame);

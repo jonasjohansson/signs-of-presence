@@ -42,7 +42,7 @@
     maxRadius: 40,
     opacity: 1.0,
     streamline: 0.60,
-    pressureCurve: 0.20,
+    pressureCurve: 1.50,
     pressureToSize: 1.00,
     pressureToOpac: 0.15,
     speedThinning: 0.30,

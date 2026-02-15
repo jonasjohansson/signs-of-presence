@@ -91,6 +91,18 @@
     display: flex; align-items: center; justify-content: center;
   }
   #btn-brush-panel:active { background: rgba(60,60,60,0.9); }
+  .sb-btn {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: rgba(35,35,35,0.92);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.3);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sb-btn:active { background: rgba(60,60,60,0.9); }
+  .sb-btn.active { background: rgba(80,50,20,0.9); color: rgba(255,180,60,0.7); }
 
   /* ── Brush settings panel ── */
   #brush-panel {
@@ -190,47 +202,6 @@
     transition: width 0.06s;
   }
 
-  /* ── App settings ── */
-  #toggle-btn {
-    position: fixed;
-    top: max(10px, env(safe-area-inset-top));
-    right: 10px;
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    background: rgba(35,35,35,0.5);
-    border: 1px solid rgba(255,255,255,0.06);
-    color: rgba(255,255,255,0.2);
-    font-size: 16px; cursor: pointer; z-index: 20;
-    display: flex; align-items: center; justify-content: center;
-  }
-  #toggle-btn:active { background: rgba(60,60,60,0.6); }
-
-  #controls {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    background: rgba(15,15,15,0.95);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    padding: 14px 20px;
-    padding-bottom: max(14px, env(safe-area-inset-bottom));
-    display: flex; align-items: center; flex-wrap: wrap; gap: 18px;
-    font-family: -apple-system, sans-serif;
-    font-size: 13px; color: #777;
-    transform: translateY(100%);
-    transition: transform 0.3s ease;
-    z-index: 10;
-  }
-  #controls.visible { transform: translateY(0); }
-  .cg { display: flex; align-items: center; gap: 8px; }
-  .cg label { white-space: nowrap; min-width: 36px; }
-  .cg input[type="range"] { width: 80px; accent-color: #555; }
-  .cg .v { min-width: 24px; text-align: right; font-variant-numeric: tabular-nums; color: #999; }
-  #controls button {
-    background: #222; border: 1px solid #333; color: #aaa;
-    padding: 7px 16px; border-radius: 6px; font-size: 13px;
-    font-family: inherit; cursor: pointer; white-space: nowrap;
-  }
-  #controls button:active { background: #444; }
 </style>
 </head>
 <body>
@@ -265,6 +236,8 @@
     <div class="vslider-label">Speed</div>
   </div>
   <button id="btn-brush-panel">&#9998;</button>
+  <button class="sb-btn" id="btn-pause">&#9646;&#9646;</button>
+  <button class="sb-btn" id="btn-clear">&times;</button>
 </div>
 
 <!-- Brush settings panel -->
@@ -280,18 +253,6 @@
   <div class="bp-row"><label>Tilt &rarr; Shape</label><input type="range" id="bp-tilt" min="0" max="100" value="70"><span class="bp-val" id="bpv-tilt">70</span></div>
   <div class="bp-row"><label>Scatter</label><input type="range" id="bp-scatter" min="0" max="100" value="0"><span class="bp-val" id="bpv-scatter">0</span></div>
   <div class="bp-row"><label>Scatter Dens</label><input type="range" id="bp-sdens" min="1" max="12" value="4"><span class="bp-val" id="bpv-sdens">4</span></div>
-</div>
-
-<!-- App settings -->
-<button id="toggle-btn" aria-label="Settings">&#9881;</button>
-<div id="controls">
-  <div class="cg">
-    <label>Speed</label>
-    <input type="range" id="r-speed" min="0" max="6" step="0.1" value="1.5">
-    <span class="v" id="v-speed">1.5</span>
-  </div>
-  <button id="btn-clear">Clear</button>
-  <button id="btn-pause">Pause</button>
 </div>
 
 <script>
@@ -674,10 +635,6 @@
     brushDot.style.opacity = brushOpacity;
   }
 
-  // Speed refs (needed by both vertical slider and bottom panel)
-  const rSpeed = document.getElementById('r-speed');
-  const vSpeed = document.getElementById('v-speed');
-
   const vsSize = setupVSlider('vs-size', 'vsf-size', 1, 150, maxRadius, v => {
     maxRadius = v;
     updatePreview();
@@ -688,8 +645,6 @@
   });
   setupVSlider('vs-speed', 'vsf-speed', 0, 6, scrollSpeed, v => {
     scrollSpeed = v;
-    rSpeed.value = v;
-    vSpeed.textContent = v.toFixed(1);
   });
   updatePreview();
 
@@ -726,18 +681,8 @@
   bpSlider('bp-sdens',  'bpv-sdens',  v => { scatterDensity = Math.round(v); });
 
   // ══════════════════════════════════════════════
-  //  App controls
+  //  Sidebar buttons
   // ══════════════════════════════════════════════
-  const controls = document.getElementById('controls');
-  document.getElementById('toggle-btn').addEventListener('click', () => {
-    controls.classList.toggle('visible');
-  });
-
-  rSpeed.addEventListener('input', () => {
-    scrollSpeed = parseFloat(rSpeed.value);
-    vSpeed.textContent = scrollSpeed.toFixed(1);
-  });
-
   document.getElementById('btn-clear').addEventListener('click', () => {
     sctx.save();
     sctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -748,7 +693,8 @@
   const btnPause = document.getElementById('btn-pause');
   btnPause.addEventListener('click', () => {
     paused = !paused;
-    btnPause.textContent = paused ? 'Play' : 'Pause';
+    btnPause.classList.toggle('active', paused);
+    btnPause.innerHTML = paused ? '&#9654;' : '&#9646;&#9646;';
   });
 
   // ── Init ──

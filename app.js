@@ -346,11 +346,24 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     if (trackBounds.length) {
+      // Non-track areas
       ctx.fillStyle = 'rgba(255,255,255,0.025)';
       ctx.fillRect(0, 0, W, trackBounds[0].top);
       ctx.fillRect(0, trackBounds[0].bot, W, trackBounds[1].top - trackBounds[0].bot);
       ctx.fillRect(0, trackBounds[1].bot, W, trackBounds[2].top - trackBounds[1].bot);
       ctx.fillRect(0, trackBounds[2].bot, W, H - trackBounds[2].bot);
+
+      // Tint each track in the draw zone
+      const trackColors = [
+        'rgba(80,120,200,0.035)',
+        'rgba(120,200,80,0.035)',
+        'rgba(200,100,80,0.035)',
+      ];
+      for (let i = 0; i < 3; i++) {
+        const tb = trackBounds[i];
+        ctx.fillStyle = trackColors[i];
+        ctx.fillRect(W * 0.75, tb.top, W * 0.25, tb.bot - tb.top);
+      }
     }
 
     ctx.strokeStyle = 'rgba(255,255,255,0.22)';

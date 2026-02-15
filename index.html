@@ -93,6 +93,51 @@
     white-space: nowrap;
   }
   #controls button:active { background: #444; }
+
+  /* Stylus debug HUD */
+  #stylus-hud {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    left: 10px;
+    background: rgba(15,15,15,0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-family: 'SF Mono', ui-monospace, monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    color: #666;
+    z-index: 20;
+    pointer-events: none;
+    min-width: 180px;
+  }
+  #stylus-hud .label {
+    color: #555;
+    display: inline-block;
+    width: 72px;
+  }
+  #stylus-hud .val {
+    color: #aaa;
+    font-variant-numeric: tabular-nums;
+  }
+  #stylus-hud .bar-track {
+    display: inline-block;
+    width: 50px;
+    height: 4px;
+    background: #222;
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-left: 4px;
+    overflow: hidden;
+  }
+  #stylus-hud .bar-fill {
+    height: 100%;
+    background: #888;
+    border-radius: 2px;
+    transition: width 0.05s;
+  }
 </style>
 </head>
 <body>
@@ -101,16 +146,23 @@
 
 <button id="toggle-btn" aria-label="Settings">&#9881;</button>
 
+<!-- Stylus info HUD -->
+<div id="stylus-hud">
+  <div><span class="label">type</span><span class="val" id="s-type">--</span></div>
+  <div><span class="label">pressure</span><span class="val" id="s-pressure">--</span><span class="bar-track"><span class="bar-fill" id="s-pressure-bar" style="width:0%"></span></span></div>
+  <div><span class="label">tiltX</span><span class="val" id="s-tiltx">--</span></div>
+  <div><span class="label">tiltY</span><span class="val" id="s-tilty">--</span></div>
+  <div><span class="label">altitude</span><span class="val" id="s-altitude">--</span></div>
+  <div><span class="label">azimuth</span><span class="val" id="s-azimuth">--</span></div>
+  <div><span class="label">twist</span><span class="val" id="s-twist">--</span></div>
+  <div><span class="label">position</span><span class="val" id="s-pos">--</span></div>
+</div>
+
 <div id="controls">
   <div class="cg">
     <label>Speed</label>
     <input type="range" id="r-speed" min="0" max="6" step="0.1" value="1.5">
     <span class="v" id="v-speed">1.5</span>
-  </div>
-  <div class="cg">
-    <label>Fade</label>
-    <input type="range" id="r-fade" min="0" max="20" step="1" value="8">
-    <span class="v" id="v-fade">8</span>
   </div>
   <div class="cg">
     <label>Size</label>
@@ -129,16 +181,25 @@
   const score  = document.createElement('canvas');
   const sctx   = score.getContext('2d');
 
+  // ── Stylus HUD elements ──
+  const sType        = document.getElementById('s-type');
+  const sPressure    = document.getElementById('s-pressure');
+  const sPressureBar = document.getElementById('s-pressure-bar');
+  const sTiltX       = document.getElementById('s-tiltx');
+  const sTiltY       = document.getElementById('s-tilty');
+  const sAltitude    = document.getElementById('s-altitude');
+  const sAzimuth     = document.getElementById('s-azimuth');
+  const sTwist       = document.getElementById('s-twist');
+  const sPos         = document.getElementById('s-pos');
+
   // ── Settings ──
-  let scrollSpeed  = 1.5;   // CSS px per frame
-  let fadeIntensity = 8;     // 0‑20 slider units
-  let maxRadius    = 14;     // max brush radius at full pressure
-  let paused       = false;
+  let scrollSpeed = 1.5;
+  let maxRadius   = 14;
+  let paused      = false;
 
   // ── Derived ──
   let W, H, dpr;
-  let lanes = [];            // Y of the 2 divider lines
-  let fadeGrad = null;
+  let lanes = [];
 
   // ── Drawing state ──
   let drawing = false;
@@ -152,7 +213,6 @@
     W = window.innerWidth;
     H = window.innerHeight;
 
-    // Preserve existing score
     const tmp = document.createElement('canvas');
     tmp.width = score.width;
     tmp.height = score.height;
@@ -165,35 +225,15 @@
     score.width   = W * dpr;
     score.height  = H * dpr;
 
-    // Restore
     if (tmp.width > 0 && tmp.height > 0) {
       sctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, 0, 0, score.width, score.height);
     }
 
-    // Scale contexts so we can work in CSS‑pixel coords
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // 2 divider lines → 3 equal tracks
-    lanes = [H / 3, (H * 2) / 3];
-
-    buildFadeGradient();
-  }
-
-  // ────────────────────────────────────────────
-  //  Fade gradient  (stronger on left, weaker on right)
-  // ────────────────────────────────────────────
-  function buildFadeGradient() {
-    // Work in physical pixels (gradient applied with reset transform)
-    fadeGrad = sctx.createLinearGradient(0, 0, score.width, 0);
-    const m = fadeIntensity / 10;           // 0 → 0, 10 → 1.0, 20 → 2.0
-    fadeGrad.addColorStop(0,    rgba(0.030 * m));
-    fadeGrad.addColorStop(0.35, rgba(0.014 * m));
-    fadeGrad.addColorStop(0.65, rgba(0.006 * m));
-    fadeGrad.addColorStop(1.0,  rgba(0.002 * m));
-  }
-  function rgba(a) {
-    return `rgba(0,0,0,${Math.min(a, 1).toFixed(5)})`;
+    // 3 horizontal lines, evenly spaced
+    lanes = [H * 0.25, H * 0.5, H * 0.75];
   }
 
   // ────────────────────────────────────────────
@@ -227,6 +267,22 @@
   }
 
   // ────────────────────────────────────────────
+  //  Stylus HUD update
+  // ────────────────────────────────────────────
+  function updateHUD(e) {
+    sType.textContent = e.pointerType || '--';
+    const p = e.pressure ?? 0;
+    sPressure.textContent = p.toFixed(3);
+    sPressureBar.style.width = (p * 100) + '%';
+    sTiltX.textContent = (e.tiltX ?? 0) + '\u00B0';
+    sTiltY.textContent = (e.tiltY ?? 0) + '\u00B0';
+    sAltitude.textContent = e.altitudeAngle != null ? (e.altitudeAngle * 180 / Math.PI).toFixed(1) + '\u00B0' : '--';
+    sAzimuth.textContent = e.azimuthAngle != null ? (e.azimuthAngle * 180 / Math.PI).toFixed(1) + '\u00B0' : '--';
+    sTwist.textContent = (e.twist ?? 0) + '\u00B0';
+    sPos.textContent = Math.round(e.clientX) + ', ' + Math.round(e.clientY);
+  }
+
+  // ────────────────────────────────────────────
   //  Pointer events  (pen + mouse; ignore finger)
   // ────────────────────────────────────────────
   function onDown(e) {
@@ -241,9 +297,11 @@
 
     sctx.fillStyle = '#fff';
     stamp(prevX, prevY, prevP);
+    updateHUD(e);
   }
 
   function onMove(e) {
+    updateHUD(e);
     if (!drawing) return;
     e.preventDefault();
 
@@ -261,7 +319,10 @@
     }
   }
 
-  function onUp() { drawing = false; }
+  function onUp(e) {
+    drawing = false;
+    if (e) updateHUD(e);
+  }
 
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
@@ -282,20 +343,10 @@
       sctx.globalCompositeOperation = 'source-over';
       sctx.restore();
 
-      // Keep continuous strokes connected after scroll
       if (drawing) prevX -= scrollSpeed;
     }
 
-    // 2) Fade (gradient: strong left, gentle right)
-    if (fadeIntensity > 0) {
-      sctx.save();
-      sctx.setTransform(1, 0, 0, 1, 0, 0);
-      sctx.fillStyle = fadeGrad;
-      sctx.fillRect(0, 0, score.width, score.height);
-      sctx.restore();
-    }
-
-    // 3) Render to display canvas
+    // 2) Render to display canvas
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
@@ -303,10 +354,9 @@
     ctx.drawImage(score, 0, 0);
     ctx.restore();
 
-    // Back to CSS‑pixel coords
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // 4) Staff lines (2 dividers → 3 tracks)
+    // 3) Staff lines (2 dividers -> 3 tracks)
     ctx.strokeStyle = 'rgba(255,255,255,0.22)';
     ctx.lineWidth = 1;
     for (const y of lanes) {
@@ -316,7 +366,7 @@
       ctx.stroke();
     }
 
-    // 5) Drawing‑zone indicator (subtle dashed line at 75% width)
+    // 4) Drawing-zone indicator
     const zx = W * 0.75;
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.06)';
@@ -339,7 +389,6 @@
 
   toggleBtn.addEventListener('click', () => controls.classList.toggle('visible'));
 
-  // Speed
   const rSpeed = document.getElementById('r-speed');
   const vSpeed = document.getElementById('v-speed');
   rSpeed.addEventListener('input', () => {
@@ -347,16 +396,6 @@
     vSpeed.textContent = scrollSpeed.toFixed(1);
   });
 
-  // Fade
-  const rFade = document.getElementById('r-fade');
-  const vFade = document.getElementById('v-fade');
-  rFade.addEventListener('input', () => {
-    fadeIntensity = parseInt(rFade.value, 10);
-    vFade.textContent = fadeIntensity;
-    buildFadeGradient();
-  });
-
-  // Brush size
   const rSize = document.getElementById('r-size');
   const vSize = document.getElementById('v-size');
   rSize.addEventListener('input', () => {
@@ -364,7 +403,6 @@
     vSize.textContent = maxRadius;
   });
 
-  // Clear
   document.getElementById('btn-clear').addEventListener('click', () => {
     sctx.save();
     sctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -372,7 +410,6 @@
     sctx.restore();
   });
 
-  // Pause / Play
   const btnPause = document.getElementById('btn-pause');
   btnPause.addEventListener('click', () => {
     paused = !paused;

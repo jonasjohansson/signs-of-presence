@@ -38,14 +38,14 @@
   let paused = false;
 
   const brush = {
-    maxRadius: 40,
+    maxRadius: 100,
     opacity: 1.0,
     streamline: 0.30,
-    pressureCurve: 0.35,
+    pressureCurve: 0.20,
     pressureToSize: 1.00,
     pressureToOpac: 0.15,
     speedThinning: 0.30,
-    minSizePct: 0.02,
+    minSizePct: 0.01,
     softness: 0.15,
     tiltInfluence: 0.70,
     scatterRadius: 0,
@@ -440,7 +440,7 @@
     brushDot.style.opacity = brush.opacity;
   }
 
-  setupSlider('vs-size', 'vsf-size', 1, 150, brush.maxRadius, v => {
+  setupSlider('vs-size', 'vsf-size', 1, 300, brush.maxRadius, v => {
     brush.maxRadius = v;
     updatePreview();
   });

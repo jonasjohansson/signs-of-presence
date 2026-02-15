@@ -338,6 +338,8 @@
   // Tilt smoothing
   let smTiltCos = 0, smTiltSin = 0, smAspect = 1;
   let curAngle = 0, curAspect = 1;
+  // Track locking
+  let activeTrackTop = 0, activeTrackBot = 0; // Y bounds of current stroke's track
 
   // ── HUD refs ──
   const sType = document.getElementById('s-type');
@@ -517,17 +519,28 @@
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
 
-    drawing = true;
     const x = e.clientX, y = e.clientY, p = e.pressure || 0.5;
+
+    // Only allow drawing in the right 25%
+    if (x < W * 0.75) return;
+
+    // Lock to the track the pen landed in (3 equal tracks)
+    const trackH = H / 3;
+    const trackIdx = Math.min(2, Math.floor(y / trackH));
+    activeTrackTop = trackIdx * trackH;
+    activeTrackBot = activeTrackTop + trackH;
+
+    drawing = true;
+    const cy = Math.max(activeTrackTop, Math.min(activeTrackBot, y));
     smoothX = prevDX = x;
-    smoothY = prevDY = y;
+    smoothY = prevDY = cy;
     smoothP = prevDP = p;
     lastTime = performance.now();
     lastVelocity = 0;
     smTiltCos = 0; smTiltSin = 0; smAspect = 1;
     computeTilt(e);
 
-    stamp(x, y, p, 0, curAngle, curAspect);
+    stamp(x, cy, p, 0, curAngle, curAspect);
     updateHUD(e);
   }
 
@@ -540,7 +553,8 @@
     const now = performance.now();
 
     for (const ce of events) {
-      const rx = ce.clientX, ry = ce.clientY;
+      const rx = ce.clientX;
+      const ry = Math.max(activeTrackTop, Math.min(activeTrackBot, ce.clientY));
       const rp = ce.pressure || 0.5;
 
       // Streamline smoothing

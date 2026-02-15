@@ -267,11 +267,11 @@
 <div id="brush-panel">
   <div class="bp-header">Brush <button class="bp-close" id="bp-close">&times;</button></div>
   <div class="bp-row"><label>Streamline</label><input type="range" id="bp-stream" min="0" max="95" value="30"><span class="bp-val" id="bpv-stream">30</span></div>
-  <div class="bp-row"><label>Pressure Crv</label><input type="range" id="bp-pcurve" min="20" max="200" value="65"><span class="bp-val" id="bpv-pcurve">65</span></div>
-  <div class="bp-row"><label>Press &rarr; Size</label><input type="range" id="bp-psize" min="0" max="100" value="80"><span class="bp-val" id="bpv-psize">80</span></div>
+  <div class="bp-row"><label>Sensitivity</label><input type="range" id="bp-pcurve" min="20" max="200" value="35"><span class="bp-val" id="bpv-pcurve">35</span></div>
+  <div class="bp-row"><label>Press &rarr; Size</label><input type="range" id="bp-psize" min="0" max="100" value="100"><span class="bp-val" id="bpv-psize">100</span></div>
   <div class="bp-row"><label>Press &rarr; Opac</label><input type="range" id="bp-popac" min="0" max="100" value="15"><span class="bp-val" id="bpv-popac">15</span></div>
   <div class="bp-row"><label>Speed Thin</label><input type="range" id="bp-vel" min="0" max="100" value="30"><span class="bp-val" id="bpv-vel">30</span></div>
-  <div class="bp-row"><label>Min Size</label><input type="range" id="bp-min" min="1" max="50" value="8"><span class="bp-val" id="bpv-min">8</span></div>
+  <div class="bp-row"><label>Min Size</label><input type="range" id="bp-min" min="1" max="50" value="2"><span class="bp-val" id="bpv-min">2</span></div>
   <div class="bp-row"><label>Softness</label><input type="range" id="bp-soft" min="0" max="100" value="15"><span class="bp-val" id="bpv-soft">15</span></div>
 </div>
 
@@ -308,14 +308,14 @@
   let paused      = false;
 
   // ── Brush params ──
-  let maxRadius       = 14;
+  let maxRadius       = 40;
   let brushOpacity    = 1.0;
   let streamline      = 0.30;   // 0–0.95
-  let pressureCurve   = 0.65;   // power exponent (< 1 = responsive)
-  let pressureToSize  = 0.80;   // 0–1
+  let pressureCurve   = 0.35;   // power exponent (< 1 = very sensitive)
+  let pressureToSize  = 1.00;   // 0–1  (full pressure→size range)
   let pressureToOpac  = 0.15;   // 0–1
   let speedThinning   = 0.30;   // 0–1
-  let minSizePct      = 0.08;   // 0–0.5
+  let minSizePct      = 0.02;   // 0–0.5 (very thin at light touch)
   let softness        = 0.15;   // 0–1
 
   // ── Drawing state ──
@@ -586,7 +586,7 @@
     brushDot.style.opacity = brushOpacity;
   }
 
-  const vsSize = setupVSlider('vs-size', 'vsf-size', 1, 50, maxRadius, v => {
+  const vsSize = setupVSlider('vs-size', 'vsf-size', 1, 80, maxRadius, v => {
     maxRadius = v;
     updatePreview();
   });

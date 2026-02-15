@@ -24,34 +24,53 @@
     touch-action: none;
   }
 
-  /* ── Brush sidebar (left, Procreate‑style) ── */
-  #brush-sidebar {
+  /* ── Top bar: stylus HUD ── */
+  #top-bar {
     position: fixed;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0; left: 0; right: 0;
+    height: 12%;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    gap: 18px;
+    z-index: 20;
+    pointer-events: none;
+    font-family: 'SF Mono', ui-monospace, monospace;
+    font-size: 10px;
+    color: #555;
+  }
+  .hud-item { white-space: nowrap; }
+  #top-bar .hl { color: #444; margin-right: 4px; }
+  #top-bar .hv { color: #888; font-variant-numeric: tabular-nums; }
+
+  /* ── Bottom bar: controls ── */
+  #bottom-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 12%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
     z-index: 20;
   }
 
-  /* Vertical slider */
+  /* Horizontal slider */
   .vslider {
     position: relative;
-    width: 30px;
-    height: 140px;
+    width: 120px;
+    height: 30px;
     background: rgba(35,35,35,0.92);
     border-radius: 15px;
     border: 1px solid rgba(255,255,255,0.06);
     overflow: hidden;
-    cursor: ns-resize;
+    cursor: ew-resize;
     touch-action: none;
   }
   .vslider-fill {
     position: absolute;
-    bottom: 0; left: 0; right: 0;
+    top: 0; left: 0; bottom: 0;
+    width: 0;
     background: rgba(255,255,255,0.13);
     border-radius: 15px;
     pointer-events: none;
@@ -60,7 +79,8 @@
     position: absolute;
     width: 100%;
     text-align: center;
-    top: 6px;
+    top: 50%;
+    transform: translateY(-50%);
     font-family: -apple-system, sans-serif;
     font-size: 8px;
     letter-spacing: 0.5px;
@@ -107,12 +127,12 @@
   /* ── Brush settings panel ── */
   #brush-panel {
     position: fixed;
-    left: 60px;
-    top: 50%;
-    transform: translateY(-50%) scale(0.95);
+    bottom: 13%;
+    left: 50%;
+    transform: translateX(-50%) scale(0.95);
     opacity: 0;
     pointer-events: none;
-    width: 230px;
+    width: 280px;
     background: rgba(22,22,22,0.96);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -128,7 +148,7 @@
   #brush-panel.open {
     opacity: 1;
     pointer-events: auto;
-    transform: translateY(-50%) scale(1);
+    transform: translateX(-50%) scale(1);
   }
   .bp-header {
     display: flex;
@@ -170,27 +190,6 @@
     color: #777;
   }
 
-  /* ── Stylus HUD ── */
-  #stylus-hud {
-    position: fixed;
-    top: max(10px, env(safe-area-inset-top));
-    left: 60px;
-    background: rgba(15,15,15,0.85);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 10px;
-    padding: 8px 12px;
-    font-family: 'SF Mono', ui-monospace, monospace;
-    font-size: 10px;
-    line-height: 1.65;
-    color: #555;
-    z-index: 20;
-    pointer-events: none;
-    min-width: 170px;
-  }
-  #stylus-hud .hl { color: #444; display: inline-block; width: 66px; }
-  #stylus-hud .hv { color: #888; font-variant-numeric: tabular-nums; }
   .hbar {
     display: inline-block; width: 44px; height: 3px;
     background: #1a1a1a; border-radius: 2px;
@@ -208,20 +207,20 @@
 
 <canvas id="main"></canvas>
 
-<!-- Stylus HUD -->
-<div id="stylus-hud">
-  <div><span class="hl">type</span><span class="hv" id="s-type">--</span></div>
-  <div><span class="hl">pressure</span><span class="hv" id="s-pressure">--</span><span class="hbar"><span class="hbar-fill" id="s-pbar" style="width:0%"></span></span></div>
-  <div><span class="hl">tiltX</span><span class="hv" id="s-tiltx">--</span></div>
-  <div><span class="hl">tiltY</span><span class="hv" id="s-tilty">--</span></div>
-  <div><span class="hl">altitude</span><span class="hv" id="s-alt">--</span></div>
-  <div><span class="hl">azimuth</span><span class="hv" id="s-azi">--</span></div>
-  <div><span class="hl">twist</span><span class="hv" id="s-twist">--</span></div>
-  <div><span class="hl">position</span><span class="hv" id="s-pos">--</span></div>
+<!-- Top bar: stylus HUD -->
+<div id="top-bar">
+  <div class="hud-item"><span class="hl">type</span><span class="hv" id="s-type">--</span></div>
+  <div class="hud-item"><span class="hl">pressure</span><span class="hv" id="s-pressure">--</span><span class="hbar"><span class="hbar-fill" id="s-pbar" style="width:0%"></span></span></div>
+  <div class="hud-item"><span class="hl">tiltX</span><span class="hv" id="s-tiltx">--</span></div>
+  <div class="hud-item"><span class="hl">tiltY</span><span class="hv" id="s-tilty">--</span></div>
+  <div class="hud-item"><span class="hl">alt</span><span class="hv" id="s-alt">--</span></div>
+  <div class="hud-item"><span class="hl">azi</span><span class="hv" id="s-azi">--</span></div>
+  <div class="hud-item"><span class="hl">twist</span><span class="hv" id="s-twist">--</span></div>
+  <div class="hud-item"><span class="hl">pos</span><span class="hv" id="s-pos">--</span></div>
 </div>
 
-<!-- Brush sidebar -->
-<div id="brush-sidebar">
+<!-- Bottom bar: controls -->
+<div id="bottom-bar">
   <div class="vslider" id="vs-size">
     <div class="vslider-fill" id="vsf-size"></div>
     <div class="vslider-label">Size</div>
@@ -634,13 +633,13 @@
 
     function setVal(v) {
       val = Math.max(min, Math.min(max, v));
-      fill.style.height = ((val - min) / (max - min) * 100) + '%';
+      fill.style.width = ((val - min) / (max - min) * 100) + '%';
       onChange(val);
     }
 
-    function fromY(clientY) {
+    function fromX(clientX) {
       const r = el.getBoundingClientRect();
-      const ratio = 1 - (clientY - r.top) / r.height;
+      const ratio = (clientX - r.left) / r.width;
       setVal(min + ratio * (max - min));
     }
 
@@ -648,9 +647,9 @@
       e.preventDefault(); e.stopPropagation();
       active = true;
       el.setPointerCapture(e.pointerId);
-      fromY(e.clientY);
+      fromX(e.clientX);
     });
-    el.addEventListener('pointermove', e => { if (active) fromY(e.clientY); });
+    el.addEventListener('pointermove', e => { if (active) fromX(e.clientX); });
     el.addEventListener('pointerup', () => active = false);
     el.addEventListener('pointercancel', () => active = false);
 

@@ -38,6 +38,7 @@
   let paused = false;
 
   const brush = {
+    type: 'normal',  // 'normal', 'splatter', 'particle'
     maxRadius: 40,
     opacity: 1.0,
     streamline: 0.30,
@@ -63,6 +64,9 @@
     // tilt smoothing
     smTiltCos: 0, smTiltSin: 0, smAspect: 1,
     angle: 0, aspect: 1,
+    // hold-to-grow
+    holdTime: 0,
+    holdX: 0, holdY: 0, holdP: 0,
   };
 
   /* ════════════════════════════════════════════════
@@ -175,16 +179,51 @@
     const r = computeRadius(pressure, velocity);
     const alpha = computeAlpha(pressure);
 
-    drawDab(x, y, r, alpha, angle, aspect);
-
-    if (brush.scatterRadius > 0) {
-      const spread = r * brush.scatterRadius * 3;
-      for (let s = 0; s < brush.scatterDensity; s++) {
+    if (brush.type === 'splatter') {
+      // Central blob
+      drawDab(x, y, r * 0.6, alpha, angle, aspect);
+      // Radiating streaks and drops
+      const count = 4 + Math.floor(pressure * 10);
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const reach = r * (1 + Math.random() * 3) * pressure;
+        const steps = Math.ceil(reach / 2);
+        for (let j = 0; j < steps; j++) {
+          const t = j / steps;
+          const sr = r * (0.4 - t * 0.35) * (0.5 + Math.random() * 0.5);
+          const sx = x + Math.cos(a) * reach * t;
+          const sy = y + Math.sin(a) * reach * t;
+          drawDab(sx, sy, Math.max(0.5, sr), alpha * (1 - t * 0.6), angle, aspect);
+        }
+        // Drop at the end
+        if (Math.random() < 0.5) {
+          const dr = r * (0.15 + Math.random() * 0.3);
+          drawDab(x + Math.cos(a) * reach, y + Math.sin(a) * reach, dr, alpha * 0.8, angle, aspect);
+        }
+      }
+    } else if (brush.type === 'particle') {
+      // Spray of small particles
+      const count = 3 + Math.floor(pressure * 12);
+      const spread = r * 3;
+      for (let i = 0; i < count; i++) {
         const a = Math.random() * Math.PI * 2;
         const d = Math.random() * spread;
-        const sr = r * (0.3 + Math.random() * 0.7);
-        const sa = alpha * (0.4 + Math.random() * 0.6);
-        drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, sr, sa, angle, aspect);
+        const pr = 0.5 + Math.random() * r * 0.25;
+        drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, alpha * (0.5 + Math.random() * 0.5), angle, aspect);
+      }
+    } else {
+      // Normal ink brush
+      drawDab(x, y, r, alpha, angle, aspect);
+
+      if (brush.scatterRadius > 0) {
+        const spread = r * brush.scatterRadius * 3;
+        for (let s = 0; s < brush.scatterDensity; s++) {
+          const a = Math.random() * Math.PI * 2;
+          const d = Math.random() * spread;
+          const sr = r * (0.3 + Math.random() * 0.7);
+          const sa = alpha * (0.4 + Math.random() * 0.6);
+          drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, sr, sa, angle, aspect);
+        }
       }
     }
   }
@@ -266,6 +305,10 @@
     stroke.smTiltCos = 0;
     stroke.smTiltSin = 0;
     stroke.smAspect = 1;
+    stroke.holdTime = 0;
+    stroke.holdX = x;
+    stroke.holdY = cy;
+    stroke.holdP = p;
     computeTilt(e);
 
     stamp(x, cy, p, 0, stroke.angle, stroke.aspect);
@@ -334,6 +377,25 @@
       if (stroke.active) {
         stroke.prevX -= brush.scrollSpeed;
         stroke.smoothX -= brush.scrollSpeed;
+        stroke.holdX -= brush.scrollSpeed;
+      }
+    }
+
+    // Hold-to-grow: pen down but barely moving → expanding blob
+    if (stroke.active) {
+      const moved = Math.hypot(stroke.smoothX - stroke.holdX, stroke.smoothY - stroke.holdY);
+      if (moved < 3) {
+        stroke.holdTime += 1 / 60;
+        if (stroke.holdTime > 0.15) {
+          const grow = brush.maxRadius * Math.min((stroke.holdTime - 0.15) * 1.2, 4);
+          if (grow > 1) {
+            drawDab(stroke.smoothX, stroke.smoothY, grow, 1, stroke.angle, stroke.aspect);
+          }
+        }
+      } else {
+        stroke.holdTime = 0;
+        stroke.holdX = stroke.smoothX;
+        stroke.holdY = stroke.smoothY;
       }
     }
 
@@ -500,6 +562,20 @@
     paused = !paused;
     btnPause.classList.toggle('active', paused);
     btnPause.innerHTML = paused ? '&#9654;' : '&#9646;&#9646;';
+  });
+
+  /* ════════════════════════════════════════════════
+   *  UI: brush type selector
+   * ════════════════════════════════════════════════ */
+  const btBtns = document.querySelectorAll('.bt-btn');
+  btBtns.forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      btBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      brush.type = btn.dataset.type;
+    });
   });
 
   /* ════════════════════════════════════════════════

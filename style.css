@@ -88,6 +88,37 @@ canvas#main {
   z-index: 20;
 }
 
+/* ── Brush type buttons ── */
+.brush-types {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bt-btn {
+  width: 44px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(35, 35, 35, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.3);
+  font-family: -apple-system, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.bt-btn:active {
+  background: rgba(60, 60, 60, 0.9);
+}
+
+.bt-btn.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 /* ── Vertical slider ── */
 .vslider {
   position: relative;

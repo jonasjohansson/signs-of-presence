@@ -355,15 +355,17 @@
 
       // Tint each track in the draw zone
       const trackColors = [
-        'rgba(80,120,200,0.035)',
-        'rgba(120,200,80,0.035)',
-        'rgba(200,100,80,0.035)',
+        'rgb(80,120,200)',
+        'rgb(120,200,80)',
+        'rgb(200,100,80)',
       ];
       for (let i = 0; i < 3; i++) {
         const tb = trackBounds[i];
+        ctx.globalAlpha = 0.035;
         ctx.fillStyle = trackColors[i];
         ctx.fillRect(W * 0.75, tb.top, W * 0.25, tb.bot - tb.top);
-        ctx.strokeStyle = trackColors[i].replace('0.035', '1');
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = trackColors[i];
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(W * 0.75, tb.top);
@@ -374,7 +376,7 @@
       }
     }
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.strokeStyle = '#fff';
     ctx.lineWidth = 1;
     for (const y of lanes) {
       ctx.beginPath();
@@ -383,7 +385,7 @@
       ctx.stroke();
     }
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.strokeStyle = '#fff';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(W * 0.75, 0);

@@ -24,25 +24,187 @@
     touch-action: none;
   }
 
-  /* Settings toggle */
+  /* ── Brush sidebar (left, Procreate‑style) ── */
+  #brush-sidebar {
+    position: fixed;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 20;
+  }
+
+  /* Vertical slider */
+  .vslider {
+    position: relative;
+    width: 30px;
+    height: 140px;
+    background: rgba(35,35,35,0.92);
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.06);
+    overflow: hidden;
+    cursor: ns-resize;
+    touch-action: none;
+  }
+  .vslider-fill {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(255,255,255,0.13);
+    border-radius: 15px;
+    pointer-events: none;
+  }
+  .vslider-label {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    top: 6px;
+    font-family: -apple-system, sans-serif;
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+    pointer-events: none;
+  }
+
+  /* Brush preview */
+  #brush-preview {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #brush-dot {
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  /* Brush settings button */
+  #btn-brush-panel {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: rgba(35,35,35,0.92);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.3);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #btn-brush-panel:active { background: rgba(60,60,60,0.9); }
+
+  /* ── Brush settings panel ── */
+  #brush-panel {
+    position: fixed;
+    left: 60px;
+    top: 50%;
+    transform: translateY(-50%) scale(0.95);
+    opacity: 0;
+    pointer-events: none;
+    width: 230px;
+    background: rgba(22,22,22,0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+    padding: 16px;
+    font-family: -apple-system, sans-serif;
+    font-size: 12px;
+    color: #888;
+    z-index: 25;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  #brush-panel.open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(-50%) scale(1);
+  }
+  .bp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #aaa;
+  }
+  .bp-close {
+    background: none; border: none;
+    color: #666; font-size: 18px;
+    cursor: pointer; padding: 0 2px;
+  }
+  .bp-close:active { color: #aaa; }
+  .bp-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .bp-row:last-child { margin-bottom: 0; }
+  .bp-row label {
+    flex: 0 0 82px;
+    font-size: 11px;
+    color: #666;
+  }
+  .bp-row input[type="range"] {
+    flex: 1;
+    accent-color: #555;
+    height: 18px;
+  }
+  .bp-row .bp-val {
+    flex: 0 0 28px;
+    text-align: right;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    color: #777;
+  }
+
+  /* ── Stylus HUD ── */
+  #stylus-hud {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    left: 60px;
+    background: rgba(15,15,15,0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-family: 'SF Mono', ui-monospace, monospace;
+    font-size: 10px;
+    line-height: 1.65;
+    color: #555;
+    z-index: 20;
+    pointer-events: none;
+    min-width: 170px;
+  }
+  #stylus-hud .hl { color: #444; display: inline-block; width: 66px; }
+  #stylus-hud .hv { color: #888; font-variant-numeric: tabular-nums; }
+  .hbar {
+    display: inline-block; width: 44px; height: 3px;
+    background: #1a1a1a; border-radius: 2px;
+    vertical-align: middle; margin-left: 4px;
+    overflow: hidden;
+  }
+  .hbar-fill {
+    height: 100%; background: #666; border-radius: 2px;
+    transition: width 0.06s;
+  }
+
+  /* ── App settings ── */
   #toggle-btn {
     position: fixed;
     top: max(10px, env(safe-area-inset-top));
     right: 10px;
-    width: 40px; height: 40px;
+    width: 36px; height: 36px;
     border-radius: 50%;
-    background: rgba(40,40,40,0.4);
-    border: 1px solid rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.25);
-    font-size: 18px;
-    cursor: pointer;
-    z-index: 20;
+    background: rgba(35,35,35,0.5);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.2);
+    font-size: 16px; cursor: pointer; z-index: 20;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.3s;
   }
-  #toggle-btn:active { background: rgba(80,80,80,0.6); }
+  #toggle-btn:active { background: rgba(60,60,60,0.6); }
 
-  /* Controls panel */
   #controls {
     position: fixed;
     bottom: 0; left: 0; right: 0;
@@ -51,123 +213,75 @@
     -webkit-backdrop-filter: blur(12px);
     padding: 14px 20px;
     padding-bottom: max(14px, env(safe-area-inset-bottom));
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 18px;
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 13px;
-    color: #777;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 18px;
+    font-family: -apple-system, sans-serif;
+    font-size: 13px; color: #777;
     transform: translateY(100%);
     transition: transform 0.3s ease;
     z-index: 10;
   }
   #controls.visible { transform: translateY(0); }
-
-  .cg {
-    display: flex; align-items: center; gap: 8px;
-  }
-  .cg label {
-    white-space: nowrap;
-    min-width: 36px;
-  }
-  .cg input[type="range"] {
-    width: 80px;
-    accent-color: #555;
-  }
-  .cg .v {
-    min-width: 24px;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    color: #999;
-  }
+  .cg { display: flex; align-items: center; gap: 8px; }
+  .cg label { white-space: nowrap; min-width: 36px; }
+  .cg input[type="range"] { width: 80px; accent-color: #555; }
+  .cg .v { min-width: 24px; text-align: right; font-variant-numeric: tabular-nums; color: #999; }
   #controls button {
-    background: #222;
-    border: 1px solid #333;
-    color: #aaa;
-    padding: 7px 16px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-family: inherit;
-    cursor: pointer;
-    white-space: nowrap;
+    background: #222; border: 1px solid #333; color: #aaa;
+    padding: 7px 16px; border-radius: 6px; font-size: 13px;
+    font-family: inherit; cursor: pointer; white-space: nowrap;
   }
   #controls button:active { background: #444; }
-
-  /* Stylus debug HUD */
-  #stylus-hud {
-    position: fixed;
-    top: max(10px, env(safe-area-inset-top));
-    left: 10px;
-    background: rgba(15,15,15,0.85);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-family: 'SF Mono', ui-monospace, monospace;
-    font-size: 11px;
-    line-height: 1.7;
-    color: #666;
-    z-index: 20;
-    pointer-events: none;
-    min-width: 180px;
-  }
-  #stylus-hud .label {
-    color: #555;
-    display: inline-block;
-    width: 72px;
-  }
-  #stylus-hud .val {
-    color: #aaa;
-    font-variant-numeric: tabular-nums;
-  }
-  #stylus-hud .bar-track {
-    display: inline-block;
-    width: 50px;
-    height: 4px;
-    background: #222;
-    border-radius: 2px;
-    vertical-align: middle;
-    margin-left: 4px;
-    overflow: hidden;
-  }
-  #stylus-hud .bar-fill {
-    height: 100%;
-    background: #888;
-    border-radius: 2px;
-    transition: width 0.05s;
-  }
 </style>
 </head>
 <body>
 
 <canvas id="main"></canvas>
 
-<button id="toggle-btn" aria-label="Settings">&#9881;</button>
-
-<!-- Stylus info HUD -->
+<!-- Stylus HUD -->
 <div id="stylus-hud">
-  <div><span class="label">type</span><span class="val" id="s-type">--</span></div>
-  <div><span class="label">pressure</span><span class="val" id="s-pressure">--</span><span class="bar-track"><span class="bar-fill" id="s-pressure-bar" style="width:0%"></span></span></div>
-  <div><span class="label">tiltX</span><span class="val" id="s-tiltx">--</span></div>
-  <div><span class="label">tiltY</span><span class="val" id="s-tilty">--</span></div>
-  <div><span class="label">altitude</span><span class="val" id="s-altitude">--</span></div>
-  <div><span class="label">azimuth</span><span class="val" id="s-azimuth">--</span></div>
-  <div><span class="label">twist</span><span class="val" id="s-twist">--</span></div>
-  <div><span class="label">position</span><span class="val" id="s-pos">--</span></div>
+  <div><span class="hl">type</span><span class="hv" id="s-type">--</span></div>
+  <div><span class="hl">pressure</span><span class="hv" id="s-pressure">--</span><span class="hbar"><span class="hbar-fill" id="s-pbar" style="width:0%"></span></span></div>
+  <div><span class="hl">tiltX</span><span class="hv" id="s-tiltx">--</span></div>
+  <div><span class="hl">tiltY</span><span class="hv" id="s-tilty">--</span></div>
+  <div><span class="hl">altitude</span><span class="hv" id="s-alt">--</span></div>
+  <div><span class="hl">azimuth</span><span class="hv" id="s-azi">--</span></div>
+  <div><span class="hl">twist</span><span class="hv" id="s-twist">--</span></div>
+  <div><span class="hl">position</span><span class="hv" id="s-pos">--</span></div>
 </div>
 
+<!-- Brush sidebar -->
+<div id="brush-sidebar">
+  <div class="vslider" id="vs-size">
+    <div class="vslider-fill" id="vsf-size"></div>
+    <div class="vslider-label">Size</div>
+  </div>
+  <div id="brush-preview"><div id="brush-dot"></div></div>
+  <div class="vslider" id="vs-opacity">
+    <div class="vslider-fill" id="vsf-opacity"></div>
+    <div class="vslider-label">Opacity</div>
+  </div>
+  <button id="btn-brush-panel">&#9998;</button>
+</div>
+
+<!-- Brush settings panel -->
+<div id="brush-panel">
+  <div class="bp-header">Brush <button class="bp-close" id="bp-close">&times;</button></div>
+  <div class="bp-row"><label>Streamline</label><input type="range" id="bp-stream" min="0" max="95" value="30"><span class="bp-val" id="bpv-stream">30</span></div>
+  <div class="bp-row"><label>Pressure Crv</label><input type="range" id="bp-pcurve" min="20" max="200" value="65"><span class="bp-val" id="bpv-pcurve">65</span></div>
+  <div class="bp-row"><label>Press &rarr; Size</label><input type="range" id="bp-psize" min="0" max="100" value="80"><span class="bp-val" id="bpv-psize">80</span></div>
+  <div class="bp-row"><label>Press &rarr; Opac</label><input type="range" id="bp-popac" min="0" max="100" value="15"><span class="bp-val" id="bpv-popac">15</span></div>
+  <div class="bp-row"><label>Speed Thin</label><input type="range" id="bp-vel" min="0" max="100" value="30"><span class="bp-val" id="bpv-vel">30</span></div>
+  <div class="bp-row"><label>Min Size</label><input type="range" id="bp-min" min="1" max="50" value="8"><span class="bp-val" id="bpv-min">8</span></div>
+  <div class="bp-row"><label>Softness</label><input type="range" id="bp-soft" min="0" max="100" value="15"><span class="bp-val" id="bpv-soft">15</span></div>
+</div>
+
+<!-- App settings -->
+<button id="toggle-btn" aria-label="Settings">&#9881;</button>
 <div id="controls">
   <div class="cg">
     <label>Speed</label>
     <input type="range" id="r-speed" min="0" max="6" step="0.1" value="1.5">
     <span class="v" id="v-speed">1.5</span>
-  </div>
-  <div class="cg">
-    <label>Size</label>
-    <input type="range" id="r-size" min="1" max="40" step="1" value="14">
-    <span class="v" id="v-size">14</span>
   </div>
   <button id="btn-clear">Clear</button>
   <button id="btn-pause">Pause</button>
@@ -175,128 +289,174 @@
 
 <script>
 (() => {
-  // ── DOM ──
+  // ── Canvases ──
   const canvas = document.getElementById('main');
   const ctx    = canvas.getContext('2d');
   const score  = document.createElement('canvas');
   const sctx   = score.getContext('2d');
 
-  // ── Stylus HUD elements ──
-  const sType        = document.getElementById('s-type');
-  const sPressure    = document.getElementById('s-pressure');
-  const sPressureBar = document.getElementById('s-pressure-bar');
-  const sTiltX       = document.getElementById('s-tiltx');
-  const sTiltY       = document.getElementById('s-tilty');
-  const sAltitude    = document.getElementById('s-altitude');
-  const sAzimuth     = document.getElementById('s-azimuth');
-  const sTwist       = document.getElementById('s-twist');
-  const sPos         = document.getElementById('s-pos');
+  // ── Pre‑rendered dab ──
+  const DAB_RES = 128;
+  const dabCvs  = document.createElement('canvas');
+  const dabCtx  = dabCvs.getContext('2d');
+  dabCvs.width = dabCvs.height = DAB_RES;
 
-  // ── Settings ──
+  // ── App state ──
+  let W, H, dpr;
+  let lanes       = [];
   let scrollSpeed = 1.5;
-  let maxRadius   = 14;
   let paused      = false;
 
-  // ── Derived ──
-  let W, H, dpr;
-  let lanes = [];
+  // ── Brush params ──
+  let maxRadius       = 14;
+  let brushOpacity    = 1.0;
+  let streamline      = 0.30;   // 0–0.95
+  let pressureCurve   = 0.65;   // power exponent (< 1 = responsive)
+  let pressureToSize  = 0.80;   // 0–1
+  let pressureToOpac  = 0.15;   // 0–1
+  let speedThinning   = 0.30;   // 0–1
+  let minSizePct      = 0.08;   // 0–0.5
+  let softness        = 0.15;   // 0–1
 
   // ── Drawing state ──
   let drawing = false;
-  let prevX = 0, prevY = 0, prevP = 0;
+  let prevDX = 0, prevDY = 0, prevDP = 0; // previous draw position (smoothed)
+  let smoothX = 0, smoothY = 0;
+  let smoothP = 0;
+  let lastTime = 0;
+  let lastVelocity = 0;
 
-  // ────────────────────────────────────────────
+  // ── HUD refs ──
+  const sType = document.getElementById('s-type');
+  const sPressure = document.getElementById('s-pressure');
+  const sPbar = document.getElementById('s-pbar');
+  const sTiltX = document.getElementById('s-tiltx');
+  const sTiltY = document.getElementById('s-tilty');
+  const sAlt = document.getElementById('s-alt');
+  const sAzi = document.getElementById('s-azi');
+  const sTwist = document.getElementById('s-twist');
+  const sPos = document.getElementById('s-pos');
+
+  // ══════════════════════════════════════════════
   //  Resize
-  // ────────────────────────────────────────────
+  // ══════════════════════════════════════════════
   function resize() {
     dpr = window.devicePixelRatio || 1;
     W = window.innerWidth;
     H = window.innerHeight;
 
     const tmp = document.createElement('canvas');
-    tmp.width = score.width;
-    tmp.height = score.height;
-    if (score.width > 0 && score.height > 0) {
+    tmp.width = score.width; tmp.height = score.height;
+    if (score.width > 0 && score.height > 0)
       tmp.getContext('2d').drawImage(score, 0, 0);
-    }
 
-    canvas.width  = W * dpr;
-    canvas.height = H * dpr;
-    score.width   = W * dpr;
-    score.height  = H * dpr;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    score.width  = W * dpr; score.height  = H * dpr;
 
-    if (tmp.width > 0 && tmp.height > 0) {
+    if (tmp.width > 0 && tmp.height > 0)
       sctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, 0, 0, score.width, score.height);
-    }
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // 3 horizontal lines, evenly spaced
     lanes = [H * 0.25, H * 0.5, H * 0.75];
   }
 
-  // ────────────────────────────────────────────
-  //  Brush
-  // ────────────────────────────────────────────
-  function stamp(x, y, pressure) {
-    const r = Math.max(0.8, pressure * maxRadius);
-    sctx.beginPath();
-    sctx.arc(x, y, r, 0, Math.PI * 2);
-    sctx.fill();
+  // ══════════════════════════════════════════════
+  //  Build soft dab texture
+  // ══════════════════════════════════════════════
+  function buildDab() {
+    dabCtx.clearRect(0, 0, DAB_RES, DAB_RES);
+    const c = DAB_RES / 2;
+    const grad = dabCtx.createRadialGradient(c, c, 0, c, c, c);
+    const hard = Math.max(0.01, 1 - softness);
+    grad.addColorStop(0, '#fff');
+    grad.addColorStop(Math.min(hard, 0.99), '#fff');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    dabCtx.fillStyle = grad;
+    dabCtx.beginPath();
+    dabCtx.arc(c, c, c, 0, Math.PI * 2);
+    dabCtx.fill();
   }
 
-  function strokeSegment(x0, y0, p0, x1, y1, p1) {
+  // ══════════════════════════════════════════════
+  //  Brush engine
+  // ══════════════════════════════════════════════
+  function stamp(x, y, pressure, velocity) {
+    const pMapped = Math.pow(Math.max(pressure, 0.001), pressureCurve);
+
+    // Radius
+    const sizeT = 1 - pressureToSize * (1 - pMapped);
+    let r = maxRadius * Math.max(minSizePct, sizeT);
+    // Velocity thinning
+    if (speedThinning > 0 && velocity > 0) {
+      const vn = Math.min(velocity / 2.5, 1);
+      r *= 1 - speedThinning * vn * 0.7;
+    }
+    r = Math.max(0.4, r);
+
+    // Opacity
+    const opacT = 1 - pressureToOpac * (1 - pMapped);
+    const alpha = brushOpacity * Math.max(0.03, opacT);
+
+    const d = r * 2;
+    sctx.globalAlpha = alpha;
+    sctx.drawImage(dabCvs, x - r, y - r, d, d);
+    sctx.globalAlpha = 1;
+  }
+
+  function strokeSegment(x0, y0, p0, x1, y1, p1, vel) {
     const dx = x1 - x0, dy = y1 - y0;
     const dist = Math.hypot(dx, dy);
+    if (dist < 0.3) { stamp(x1, y1, p1, vel); return; }
 
-    if (dist < 0.5) { stamp(x1, y1, p1); return; }
-
-    const avgR = Math.max(1, ((p0 + p1) / 2) * maxRadius);
-    const spacing = Math.max(0.8, avgR * 0.25);
+    const avgP = (p0 + p1) / 2;
+    const pMapped = Math.pow(Math.max(avgP, 0.001), pressureCurve);
+    const avgR = maxRadius * Math.max(minSizePct, 1 - pressureToSize * (1 - pMapped));
+    const spacing = Math.max(0.5, avgR * (0.18 + softness * 0.12));
     const n = Math.max(1, Math.ceil(dist / spacing));
 
     for (let i = 0; i <= n; i++) {
       const t = i / n;
-      stamp(
-        x0 + dx * t,
-        y0 + dy * t,
-        p0 + (p1 - p0) * t
-      );
+      stamp(x0 + dx * t, y0 + dy * t, p0 + (p1 - p0) * t, vel);
     }
   }
 
-  // ────────────────────────────────────────────
-  //  Stylus HUD update
-  // ────────────────────────────────────────────
+  // ══════════════════════════════════════════════
+  //  HUD
+  // ══════════════════════════════════════════════
   function updateHUD(e) {
     sType.textContent = e.pointerType || '--';
     const p = e.pressure ?? 0;
     sPressure.textContent = p.toFixed(3);
-    sPressureBar.style.width = (p * 100) + '%';
+    sPbar.style.width = (p * 100) + '%';
     sTiltX.textContent = (e.tiltX ?? 0) + '\u00B0';
     sTiltY.textContent = (e.tiltY ?? 0) + '\u00B0';
-    sAltitude.textContent = e.altitudeAngle != null ? (e.altitudeAngle * 180 / Math.PI).toFixed(1) + '\u00B0' : '--';
-    sAzimuth.textContent = e.azimuthAngle != null ? (e.azimuthAngle * 180 / Math.PI).toFixed(1) + '\u00B0' : '--';
+    sAlt.textContent = e.altitudeAngle != null
+      ? (e.altitudeAngle * 180 / Math.PI).toFixed(1) + '\u00B0' : '--';
+    sAzi.textContent = e.azimuthAngle != null
+      ? (e.azimuthAngle * 180 / Math.PI).toFixed(1) + '\u00B0' : '--';
     sTwist.textContent = (e.twist ?? 0) + '\u00B0';
     sPos.textContent = Math.round(e.clientX) + ', ' + Math.round(e.clientY);
   }
 
-  // ────────────────────────────────────────────
-  //  Pointer events  (pen + mouse; ignore finger)
-  // ────────────────────────────────────────────
+  // ══════════════════════════════════════════════
+  //  Pointer events
+  // ══════════════════════════════════════════════
   function onDown(e) {
     if (e.pointerType === 'touch') return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
 
     drawing = true;
-    prevX = e.clientX;
-    prevY = e.clientY;
-    prevP = e.pressure || 0.5;
+    const x = e.clientX, y = e.clientY, p = e.pressure || 0.5;
+    smoothX = prevDX = x;
+    smoothY = prevDY = y;
+    smoothP = prevDP = p;
+    lastTime = performance.now();
+    lastVelocity = 0;
 
-    sctx.fillStyle = '#fff';
-    stamp(prevX, prevY, prevP);
+    stamp(x, y, p, 0);
     updateHUD(e);
   }
 
@@ -306,16 +466,29 @@
     e.preventDefault();
 
     const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-    sctx.fillStyle = '#fff';
+    const now = performance.now();
 
     for (const ce of events) {
-      const x = ce.clientX;
-      const y = ce.clientY;
-      const p = ce.pressure || 0.5;
-      strokeSegment(prevX, prevY, prevP, x, y, p);
-      prevX = x;
-      prevY = y;
-      prevP = p;
+      const rx = ce.clientX, ry = ce.clientY;
+      const rp = ce.pressure || 0.5;
+
+      // Streamline smoothing
+      const s = streamline;
+      smoothX += (rx - smoothX) * (1 - s);
+      smoothY += (ry - smoothY) * (1 - s);
+      smoothP += (rp - smoothP) * 0.4; // always lightly smooth pressure
+
+      // Velocity
+      const dt = Math.max(now - lastTime, 1);
+      const dist = Math.hypot(smoothX - prevDX, smoothY - prevDY);
+      const vel = dist / dt; // px/ms
+      lastVelocity += (vel - lastVelocity) * 0.3; // smooth velocity
+      lastTime = now;
+
+      strokeSegment(prevDX, prevDY, prevDP, smoothX, smoothY, smoothP, lastVelocity);
+      prevDX = smoothX;
+      prevDY = smoothY;
+      prevDP = smoothP;
     }
   }
 
@@ -329,11 +502,10 @@
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
 
-  // ────────────────────────────────────────────
+  // ══════════════════════════════════════════════
   //  Animation loop
-  // ────────────────────────────────────────────
+  // ══════════════════════════════════════════════
   function frame() {
-    // 1) Scroll score canvas left
     if (!paused && scrollSpeed > 0) {
       const shift = scrollSpeed * dpr;
       sctx.save();
@@ -342,65 +514,130 @@
       sctx.drawImage(score, -shift, 0);
       sctx.globalCompositeOperation = 'source-over';
       sctx.restore();
-
-      if (drawing) prevX -= scrollSpeed;
+      if (drawing) { prevDX -= scrollSpeed; smoothX -= scrollSpeed; }
     }
 
-    // 2) Render to display canvas
+    // Render
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(score, 0, 0);
     ctx.restore();
-
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // 3) Staff lines (2 dividers -> 3 tracks)
+    // Staff lines
     ctx.strokeStyle = 'rgba(255,255,255,0.22)';
     ctx.lineWidth = 1;
     for (const y of lanes) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
 
-    // 4) Drawing-zone indicator
-    const zx = W * 0.75;
+    // Draw zone
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     ctx.setLineDash([5, 10]);
-    ctx.beginPath();
-    ctx.moveTo(zx, 0);
-    ctx.lineTo(zx, H);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W * 0.75, 0); ctx.lineTo(W * 0.75, H); ctx.stroke();
     ctx.restore();
 
     requestAnimationFrame(frame);
   }
 
-  // ────────────────────────────────────────────
-  //  Controls
-  // ────────────────────────────────────────────
-  const toggleBtn = document.getElementById('toggle-btn');
-  const controls  = document.getElementById('controls');
+  // ══════════════════════════════════════════════
+  //  Vertical sliders
+  // ══════════════════════════════════════════════
+  function setupVSlider(id, fillId, min, max, initial, onChange) {
+    const el = document.getElementById(id);
+    const fill = document.getElementById(fillId);
+    let val = initial;
+    let active = false;
 
-  toggleBtn.addEventListener('click', () => controls.classList.toggle('visible'));
+    function setVal(v) {
+      val = Math.max(min, Math.min(max, v));
+      fill.style.height = ((val - min) / (max - min) * 100) + '%';
+      onChange(val);
+    }
+
+    function fromY(clientY) {
+      const r = el.getBoundingClientRect();
+      const ratio = 1 - (clientY - r.top) / r.height;
+      setVal(min + ratio * (max - min));
+    }
+
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      active = true;
+      el.setPointerCapture(e.pointerId);
+      fromY(e.clientY);
+    });
+    el.addEventListener('pointermove', e => { if (active) fromY(e.clientY); });
+    el.addEventListener('pointerup', () => active = false);
+    el.addEventListener('pointercancel', () => active = false);
+
+    setVal(initial);
+    return { get: () => val, set: setVal };
+  }
+
+  const brushDot = document.getElementById('brush-dot');
+  function updatePreview() {
+    const d = Math.max(4, Math.min(36, maxRadius * 2));
+    brushDot.style.width = d + 'px';
+    brushDot.style.height = d + 'px';
+    brushDot.style.opacity = brushOpacity;
+  }
+
+  const vsSize = setupVSlider('vs-size', 'vsf-size', 1, 50, maxRadius, v => {
+    maxRadius = v;
+    updatePreview();
+  });
+  const vsOpacity = setupVSlider('vs-opacity', 'vsf-opacity', 0.05, 1, brushOpacity, v => {
+    brushOpacity = v;
+    updatePreview();
+  });
+  updatePreview();
+
+  // ══════════════════════════════════════════════
+  //  Brush settings panel
+  // ══════════════════════════════════════════════
+  const brushPanel = document.getElementById('brush-panel');
+  document.getElementById('btn-brush-panel').addEventListener('click', () => {
+    brushPanel.classList.toggle('open');
+  });
+  document.getElementById('bp-close').addEventListener('click', () => {
+    brushPanel.classList.remove('open');
+  });
+
+  function bpSlider(inputId, valId, mapFn) {
+    const input = document.getElementById(inputId);
+    const vEl = document.getElementById(valId);
+    input.addEventListener('input', () => {
+      vEl.textContent = input.value;
+      mapFn(parseFloat(input.value));
+    });
+    mapFn(parseFloat(input.value));
+  }
+
+  bpSlider('bp-stream', 'bpv-stream', v => { streamline = v / 100; });
+  bpSlider('bp-pcurve', 'bpv-pcurve', v => { pressureCurve = v / 100; });
+  bpSlider('bp-psize',  'bpv-psize',  v => { pressureToSize = v / 100; });
+  bpSlider('bp-popac',  'bpv-popac',  v => { pressureToOpac = v / 100; });
+  bpSlider('bp-vel',    'bpv-vel',    v => { speedThinning = v / 100; });
+  bpSlider('bp-min',    'bpv-min',    v => { minSizePct = v / 100; });
+  bpSlider('bp-soft',   'bpv-soft',   v => { softness = v / 100; buildDab(); });
+
+  // ══════════════════════════════════════════════
+  //  App controls
+  // ══════════════════════════════════════════════
+  const controls = document.getElementById('controls');
+  document.getElementById('toggle-btn').addEventListener('click', () => {
+    controls.classList.toggle('visible');
+  });
 
   const rSpeed = document.getElementById('r-speed');
   const vSpeed = document.getElementById('v-speed');
   rSpeed.addEventListener('input', () => {
     scrollSpeed = parseFloat(rSpeed.value);
     vSpeed.textContent = scrollSpeed.toFixed(1);
-  });
-
-  const rSize = document.getElementById('r-size');
-  const vSize = document.getElementById('v-size');
-  rSize.addEventListener('input', () => {
-    maxRadius = parseInt(rSize.value, 10);
-    vSize.textContent = maxRadius;
   });
 
   document.getElementById('btn-clear').addEventListener('click', () => {
@@ -419,6 +656,7 @@
   // ── Init ──
   window.addEventListener('resize', resize);
   resize();
+  buildDab();
   requestAnimationFrame(frame);
 })();
 </script>

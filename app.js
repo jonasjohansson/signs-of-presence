@@ -41,7 +41,7 @@
     type: 'normal',  // 'normal', 'splatter', 'particle'
     maxRadius: 40,
     opacity: 1.0,
-    streamline: 0.30,
+    streamline: 0.60,
     pressureCurve: 0.20,
     pressureToSize: 1.00,
     pressureToOpac: 0.15,

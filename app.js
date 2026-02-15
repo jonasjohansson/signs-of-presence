@@ -362,16 +362,12 @@
       ctx.stroke();
     }
 
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.setLineDash([5, 10]);
-    for (const tb of trackBounds) {
-      ctx.beginPath();
-      ctx.moveTo(W * 0.75, tb.top);
-      ctx.lineTo(W * 0.75, tb.bot);
-      ctx.stroke();
-    }
-    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(W * 0.75, 0);
+    ctx.lineTo(W * 0.75, H);
+    ctx.stroke();
 
     requestAnimationFrame(frame);
   }

@@ -445,11 +445,6 @@
     updatePreview();
   });
 
-  setupSlider('vs-opacity', 'vsf-opacity', 0.05, 1, brush.opacity, v => {
-    brush.opacity = v;
-    updatePreview();
-  });
-
   setupSlider('vs-speed', 'vsf-speed', 0, 2, brush.scrollSpeed, v => {
     brush.scrollSpeed = v;
   });

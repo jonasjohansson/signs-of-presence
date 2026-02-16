@@ -1,5 +1,5 @@
-const CACHE = 'sop-v1';
-const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json'];
+const CACHE = 'sop-v2';
+const ASSETS = ['./', 'index.html', 'css/style.css', 'js/app.js', 'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

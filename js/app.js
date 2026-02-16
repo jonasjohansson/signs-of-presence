@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 09:33';
+  const BUILD = '2026-02-16 09:37';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -180,7 +180,7 @@
    *  Brush engine
    * ════════════════════════════════════════════════ */
   function remapPressure(p) {
-    return Math.min(1, p * 2); // stylus range ~0.01–0.5 → 0–1
+    return Math.min(1, p / 0.75); // stylus range 0–0.75 → 0–1
   }
 
   function computeRadius(pressure, velocity) {
@@ -214,6 +214,14 @@
   }
 
   let activeStampChannel = 0;
+  let stampLastStampOverride = null;
+  const mirrorLastStamp = [
+    { x: 0, y: 0, r: 0, has: false },
+    { x: 0, y: 0, r: 0, has: false },
+  ];
+  const mirrorQueue = [];
+  let scrollAccum = 0;
+  let vfxEnabled = false;
 
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     let r = computeRadius(pressure, velocity);
@@ -257,7 +265,7 @@
       sctx.lineCap = 'round';
       sctx.lineJoin = 'round';
 
-      const ls = cur.lastStamp[activeStampChannel];
+      const ls = stampLastStampOverride || cur.lastStamp[activeStampChannel];
       if (ls.has) {
         const dx = x - ls.x, dy = y - ls.y;
         const dist = Math.hypot(dx, dy);
@@ -318,12 +326,6 @@
       const srcTb = trackBounds[srcTrack];
       const srcMid = (srcTb.top + srcTb.bot) / 2;
       const relY = (y - srcMid) / ((srcTb.bot - srcTb.top) / 2);
-
-      const savedType = brush.type;
-      const savedMax = brush.maxRadius;
-      const savedOpac = brush.opacity;
-
-      // Mirror to the other two tracks
       const targets = [0, 1, 2].filter(i => i !== srcTrack);
 
       for (let m = 0; m < 2; m++) {
@@ -338,21 +340,51 @@
 
         const mx = x + mo.xOff + driftX;
         const my = trackMid + relY * trackHalf * mo.yScale + driftY;
-        const mp = pressure * mo.pScale;
 
-        brush.type = mo.brushType;
-        brush.maxRadius = savedMax * mo.rScale;
-        brush.opacity = savedOpac * mo.opacScale;
-
-        activeStampChannel = m + 1;
-        stamp(mx, my, mp, velocity * mo.vScale, angle, aspect, taperMul);
+        mirrorQueue.push({
+          executeAt: performance.now() + mo.delay,
+          scrollAt: scrollAccum,
+          x: mx, y: my,
+          pressure: pressure * mo.pScale,
+          velocity: velocity * mo.vScale,
+          angle, aspect, taperMul,
+          brushType: mo.brushType,
+          maxRadius: brush.maxRadius * mo.rScale,
+          opacity: brush.opacity * mo.opacScale,
+          channel: m,
+          newStroke: false,
+        });
       }
+    }
+    activeStampChannel = 0;
+  }
 
+  function processMirrorQueue() {
+    const now = performance.now();
+    while (mirrorQueue.length > 0 && mirrorQueue[0].executeAt <= now) {
+      const e = mirrorQueue.shift();
+      if (e.newStroke) {
+        mirrorLastStamp[e.channel].has = false;
+        continue;
+      }
+      const scrollDelta = scrollAccum - e.scrollAt;
+      const savedType = brush.type;
+      const savedMax = brush.maxRadius;
+      const savedOpac = brush.opacity;
+
+      brush.type = e.brushType;
+      brush.maxRadius = e.maxRadius;
+      brush.opacity = e.opacity;
+      stampLastStampOverride = mirrorLastStamp[e.channel];
+      activeStampChannel = 0;
+
+      stamp(e.x - scrollDelta, e.y, e.pressure, e.velocity, e.angle, e.aspect, e.taperMul);
+
+      stampLastStampOverride = null;
       brush.type = savedType;
       brush.maxRadius = savedMax;
       brush.opacity = savedOpac;
     }
-    activeStampChannel = 0;
   }
 
   function strokeSegment(x0, y0, p0, x1, y1, p1, vel, angle, aspect) {
@@ -434,20 +466,25 @@
 
     // Randomize mirror personalities per stroke
     const types = ['normal', 'splatter', 'particle'];
-    cur.mirrorOffsets = [0, 1].map(() => ({
-      xOff: 120 + Math.random() * 400,
-      yScale: 0.4 + Math.random() * 1.2,
-      pScale: 0.3 + Math.random() * 0.7,
-      vScale: 0.5 + Math.random() * 1.0,
-      rScale: 0.3 + Math.random() * 1.7,
-      opacScale: 1,
-      brushType: types[Math.floor(Math.random() * types.length)],
-      driftFreq: 0.01 + Math.random() * 0.03,
-      driftAmp: 10 + Math.random() * 40,
-      driftPhaseX: Math.random() * Math.PI * 2,
-      driftPhaseY: Math.random() * Math.PI * 2,
-      timeScale: 0.7 + Math.random() * 0.6,
-    }));
+    cur.mirrorOffsets = [0, 1].map((_, m) => {
+      const delay = 200 + Math.random() * 400; // 200-600ms delay
+      mirrorQueue.push({ executeAt: performance.now() + delay, newStroke: true, channel: m });
+      return {
+        xOff: 120 + Math.random() * 400,
+        yScale: 0.4 + Math.random() * 1.2,
+        pScale: 0.3 + Math.random() * 0.7,
+        vScale: 0.5 + Math.random() * 1.0,
+        rScale: 0.3 + Math.random() * 1.7,
+        opacScale: 1,
+        brushType: types[Math.floor(Math.random() * types.length)],
+        driftFreq: 0.01 + Math.random() * 0.03,
+        driftAmp: 10 + Math.random() * 40,
+        driftPhaseX: Math.random() * Math.PI * 2,
+        driftPhaseY: Math.random() * Math.PI * 2,
+        timeScale: 0.7 + Math.random() * 0.6,
+        delay,
+      };
+    });
     computeTilt(e);
 
     mirrorStamp(x, y, p, 0, cur.angle, cur.aspect, brush.taper > 0 ? 0.1 : 1);
@@ -586,7 +623,11 @@
    *  Render loop
    * ════════════════════════════════════════════════ */
   function frame() {
+    // Process delayed mirror stamps
+    processMirrorQueue();
+
     if (brush.scrollSpeed > 0) {
+      scrollAccum += brush.scrollSpeed;
       const shift = brush.scrollSpeed * dpr;
       sctx.save();
       sctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -607,6 +648,21 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(score, 0, 0);
+
+    // VFX bloom: additive glow pass
+    if (vfxEnabled) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.filter = 'blur(8px)';
+      ctx.globalAlpha = 0.4;
+      ctx.drawImage(score, 0, 0);
+      ctx.filter = 'blur(20px)';
+      ctx.globalAlpha = 0.2;
+      ctx.drawImage(score, 0, 0);
+      ctx.filter = 'none';
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
     ctx.restore();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
@@ -745,6 +801,12 @@
   btnMirror.addEventListener('click', () => {
     brush.mirror = !brush.mirror;
     btnMirror.classList.toggle('active', brush.mirror);
+  });
+
+  const btnVfx = document.getElementById('btn-vfx');
+  btnVfx.addEventListener('click', () => {
+    vfxEnabled = !vfxEnabled;
+    btnVfx.classList.toggle('active', vfxEnabled);
   });
 
   document.getElementById('bp-close').addEventListener('click', () => {

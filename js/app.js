@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T08:36';
+  const BUILD = '2026-02-16T08:40';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -42,7 +42,7 @@
 
   const brush = {
     type: 'normal',  // 'normal', 'splatter', 'particle'
-    maxRadius: 40,
+    maxRadius: 4,
     opacity: 1.0,
     streamline: 0.60,
     curveBias: 0.8,
@@ -396,6 +396,8 @@
 
     const x = e.clientX, y = e.clientY, p = e.pressure || 0.5;
 
+    if (autoRandom) randomizeBrush();
+
     stroke.active = true;
     const cy = y;
     stroke.smoothX = stroke.prevX = x;
@@ -643,7 +645,7 @@
     brushDot.style.opacity = brush.opacity;
   }
 
-  setupSlider('vs-size', 'vsf-size', 1, 80, brush.maxRadius, v => {
+  setupSlider('vs-size', 'vsf-size', 0.5, 8, brush.maxRadius, v => {
     brush.maxRadius = v;
     updatePreview();
   });
@@ -674,23 +676,21 @@
     }
   }
 
-  document.getElementById('btn-random').addEventListener('click', () => {
-    // Random brush type
+  let autoRandom = false;
+
+  function randomizeBrush() {
     const types = ['normal', 'splatter', 'particle'];
     const type = types[Math.floor(Math.random() * types.length)];
     brush.type = type;
     const btBtns = document.querySelectorAll('.bt-btn[data-type]');
     btBtns.forEach(b => b.classList.toggle('active', b.dataset.type === type));
 
-    // Random size
-    const size = 5 + Math.random() * 70;
+    const size = 0.5 + Math.random() * 7.5;
     brush.maxRadius = size;
-    // Update the size vslider visually
-    const sizePct = (size - 1) / (80 - 1);
+    const sizePct = (size - 0.5) / (8 - 0.5);
     document.getElementById('vsf-size').style.height = (sizePct * 100) + '%';
     updatePreview();
 
-    // Randomize panel settings
     setSlider('bp-stream',  'bpv-stream',  Math.floor(20 + Math.random() * 75));
     setSlider('bp-curve',   'bpv-curve',   Math.floor(Math.random() * 100));
     setSlider('bp-pcurve',  'bpv-pcurve',  Math.floor(50 + Math.random() * 250));
@@ -704,6 +704,13 @@
     setSlider('bp-tremor',  'bpv-tremor',  Math.floor(Math.random() * 30));
     setSlider('bp-inertia', 'bpv-inertia', Math.floor(Math.random() * 50));
     setSlider('bp-scatter', 'bpv-scatter', Math.floor(Math.random() * 40));
+  }
+
+  const btnRandom = document.getElementById('btn-random');
+  btnRandom.addEventListener('click', () => {
+    autoRandom = !autoRandom;
+    btnRandom.classList.toggle('active', autoRandom);
+    if (autoRandom) randomizeBrush();
   });
 
   const btnMirror = document.getElementById('btn-mirror');

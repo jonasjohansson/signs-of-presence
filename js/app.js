@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 09:43';
+  const BUILD = '2026-02-16 09:46';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -429,7 +429,7 @@
     const avgP = (p0 + p1) / 2;
     const pMapped = Math.pow(Math.max(avgP, 0.001), brush.pressureCurve);
     const avgR = brush.maxRadius * Math.max(brush.minSizePct, 1 - brush.pressureToSize * (1 - pMapped));
-    const spacing = Math.max(0.5, avgR * 0.08);
+    const spacing = Math.max(0.3, avgR * 0.04);
     const n = Math.max(1, Math.ceil(dist / spacing));
 
     for (let i = 0; i <= n; i++) {
@@ -585,7 +585,7 @@
         const n = sh.length;
         const p0 = sh[n - 4], p1 = sh[n - 3], p2 = sh[n - 2], p3 = sh[n - 1];
         const avgR = computeRadius((p1.p + p2.p) / 2, cur.velocity);
-        const stepSize = Math.max(0.5, avgR * 0.08);
+        const stepSize = Math.max(0.3, avgR * 0.04);
         const steps = Math.max(6, Math.ceil(dist / stepSize));
         for (let i = 1; i <= steps; i++) {
           const t = i / steps;
@@ -684,7 +684,13 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(score, 0, 0);
+    if (pulseEnabled) {
+      ctx.globalAlpha = 0.25;
+      ctx.drawImage(score, 0, 0);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.drawImage(score, 0, 0);
+    }
     ctx.restore();
 
     // VFX glow: CSS-filtered overlay canvas (Safari compatible)

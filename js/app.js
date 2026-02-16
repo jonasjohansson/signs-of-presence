@@ -340,22 +340,8 @@
 
     const x = e.clientX, y = e.clientY, p = e.pressure || 0.5;
 
-    const boxR = W - SIDEBAR_W;
-    if (x < boxR * 0.75 || x > boxR) return;
-
-    let inTrack = false;
-    for (const tb of trackBounds) {
-      if (y >= tb.top && y <= tb.bot) {
-        stroke.trackTop = tb.top;
-        stroke.trackBot = tb.bot;
-        inTrack = true;
-        break;
-      }
-    }
-    if (!inTrack) return;
-
     stroke.active = true;
-    const cy = Math.max(stroke.trackTop, Math.min(stroke.trackBot, y));
+    const cy = y;
     stroke.smoothX = stroke.prevX = x;
     stroke.smoothY = stroke.prevY = cy;
     stroke.smoothP = stroke.prevP = p;
@@ -383,9 +369,8 @@
     const now = performance.now();
 
     for (const ce of events) {
-      const boxR = W - SIDEBAR_W;
-      const rx = Math.max(boxR * 0.75, Math.min(boxR, ce.clientX));
-      const ry = Math.max(stroke.trackTop, Math.min(stroke.trackBot, ce.clientY));
+      const rx = ce.clientX;
+      const ry = ce.clientY;
       const rp = ce.pressure || 0.5;
 
       const s = brush.streamline;
@@ -528,34 +513,6 @@
     ctx.drawImage(score, 0, 0);
     ctx.restore();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    if (trackBounds.length) {
-      // Non-track areas
-      ctx.fillStyle = 'rgba(255,255,255,0.025)';
-      ctx.fillRect(0, 0, W, trackBounds[0].top);
-      ctx.fillRect(0, trackBounds[0].bot, W, trackBounds[1].top - trackBounds[0].bot);
-      ctx.fillRect(0, trackBounds[1].bot, W, trackBounds[2].top - trackBounds[1].bot);
-      ctx.fillRect(0, trackBounds[2].bot, W, H - trackBounds[2].bot);
-
-      const trackColors = [
-        'rgb(80,120,200)',
-        'rgb(120,200,80)',
-        'rgb(200,100,80)',
-      ];
-      for (let i = 0; i < 3; i++) {
-        const tb = trackBounds[i];
-        ctx.globalAlpha = 0.06;
-        ctx.fillStyle = trackColors[i];
-        const boxR = W - SIDEBAR_W;
-        const boxL = boxR * 0.75;
-        ctx.fillRect(boxL, tb.top, boxR - boxL, tb.bot - tb.top);
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = trackColors[i];
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.strokeRect(boxL, tb.top, boxR - boxL, tb.bot - tb.top);
-      }
-    }
 
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 1;

@@ -438,7 +438,7 @@
     const avgP = (p0 + p1) / 2;
     const pMapped = Math.pow(Math.max(avgP, 0.001), brush.pressureCurve);
     const avgR = brush.maxRadius * Math.max(brush.minSizePct, 1 - brush.pressureToSize * (1 - pMapped));
-    const spacing = Math.max(0.3, avgR * 0.04);
+    const spacing = Math.max(0.3, avgR * 0.015);
     const n = Math.max(1, Math.ceil(dist / spacing));
 
     for (let i = 0; i <= n; i++) {
@@ -589,7 +589,7 @@
         const n = sh.length;
         const p0 = sh[n - 4], p1 = sh[n - 3], p2 = sh[n - 2], p3 = sh[n - 1];
         const avgR = computeRadius((p1.p + p2.p) / 2, cur.velocity);
-        const stepSize = Math.max(0.3, avgR * 0.04);
+        const stepSize = Math.max(0.3, avgR * 0.015);
         const steps = Math.max(6, Math.ceil(dist / stepSize));
         for (let i = 1; i <= steps; i++) {
           const t = i / steps;

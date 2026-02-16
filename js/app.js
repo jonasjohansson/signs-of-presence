@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T08:25';
+  const BUILD = '2026-02-16T08:32';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -661,6 +661,49 @@
 
   document.getElementById('btn-brush-panel').addEventListener('click', () => {
     brushPanel.classList.toggle('open');
+  });
+
+  // Helper to set a slider value and trigger its update
+  function setSlider(inputId, valId, value) {
+    const input = document.getElementById(inputId);
+    const display = document.getElementById(valId);
+    if (input) {
+      input.value = value;
+      display.textContent = Math.round(value);
+      input.dispatchEvent(new Event('input'));
+    }
+  }
+
+  document.getElementById('btn-random').addEventListener('click', () => {
+    // Random brush type
+    const types = ['normal', 'splatter', 'particle'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    brush.type = type;
+    const btBtns = document.querySelectorAll('.bt-btn[data-type]');
+    btBtns.forEach(b => b.classList.toggle('active', b.dataset.type === type));
+
+    // Random size
+    const size = 5 + Math.random() * 70;
+    brush.maxRadius = size;
+    // Update the size vslider visually
+    const sizePct = (size - 1) / (80 - 1);
+    document.getElementById('vsf-size').style.height = (sizePct * 100) + '%';
+    updatePreview();
+
+    // Randomize panel settings
+    setSlider('bp-stream',  'bpv-stream',  Math.floor(20 + Math.random() * 75));
+    setSlider('bp-curve',   'bpv-curve',   Math.floor(Math.random() * 100));
+    setSlider('bp-pcurve',  'bpv-pcurve',  Math.floor(50 + Math.random() * 250));
+    setSlider('bp-psize',   'bpv-psize',   Math.floor(30 + Math.random() * 70));
+    setSlider('bp-popac',   'bpv-popac',   Math.floor(Math.random() * 60));
+    setSlider('bp-vel',     'bpv-vel',     Math.floor(Math.random() * 80));
+    setSlider('bp-min',     'bpv-min',     Math.floor(1 + Math.random() * 30));
+    setSlider('bp-soft',    'bpv-soft',    Math.floor(Math.random() * 60));
+    setSlider('bp-tilt',    'bpv-tilt',    Math.floor(Math.random() * 100));
+    setSlider('bp-taper',   'bpv-taper',   Math.floor(Math.random() * 60));
+    setSlider('bp-tremor',  'bpv-tremor',  Math.floor(Math.random() * 30));
+    setSlider('bp-inertia', 'bpv-inertia', Math.floor(Math.random() * 50));
+    setSlider('bp-scatter', 'bpv-scatter', Math.floor(Math.random() * 40));
   });
 
   const btnMirror = document.getElementById('btn-mirror');

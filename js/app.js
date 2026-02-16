@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.32';
+  const VERSION = '0.33';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -342,8 +342,6 @@
     }
   }
 
-  let mirrorTime = 0;
-
   function mirrorStamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     // Record path for Flow effect
     if (flowEnabled && cur.flowPath) {
@@ -356,7 +354,6 @@
     // Primary stroke (channel 0)
     activeStampChannel = 0;
     stamp(x, y, pressure, velocity, angle, aspect, taperMul);
-    mirrorTime++;
 
     if (brush.mirror && trackBounds.length === 3) {
       const srcTrack = cur.sourceTrack;
@@ -371,12 +368,8 @@
         const trackMid = (tb.top + tb.bot) / 2;
         const trackHalf = (tb.bot - tb.top) / 2;
 
-        const t = mirrorTime * mo.timeScale;
-        const driftX = Math.sin(t * mo.driftFreq + mo.driftPhaseX) * mo.driftAmp;
-        const driftY = Math.cos(t * mo.driftFreq * 1.3 + mo.driftPhaseY) * mo.driftAmp * 0.6;
-
-        const mx = x + mo.xOff + driftX;
-        const my = trackMid + relY * trackHalf * mo.yScale + driftY;
+        const mx = x + mo.xOff;
+        const my = trackMid + relY * trackHalf * mo.yScale;
 
         if (mo.delay > 0) {
           mirrorQueue.push({
@@ -511,36 +504,26 @@
     cur.tremorPhase = Math.random() * Math.PI * 2;
     cur.sourceTrack = detectTrack(y);
 
-    // Randomize mirror personalities per stroke — each track gets distinct character
+    // Each mirror track gets a distinct visual personality
     const types = ['normal', 'splatter', 'particle'];
     const drift = brush.mirrorDrift;
-    const personalities = [
-      // Mirror 0: tighter, faster, closer echo
-      { xRange: [60, 200], yRange: [0.8, 0.4], pRange: [0.6, 0.4], rRange: [0.6, 0.8],
-        freqRange: [0.01, 0.02], ampRange: [3, 12], tsRange: [0.8, 0.5], delayRange: [100, 250] },
-      // Mirror 1: wider, slower, more drifty
-      { xRange: [250, 500], yRange: [0.5, 0.8], pRange: [0.3, 0.5], rRange: [0.4, 1.2],
-        freqRange: [0.003, 0.008], ampRange: [15, 40], tsRange: [0.4, 0.6], delayRange: [350, 600] },
-    ];
     cur.mirrorOffsets = [0, 1].map((_, m) => {
-      const p = personalities[m];
-      const delay = drift ? p.delayRange[0] + Math.random() * (p.delayRange[1] - p.delayRange[0]) : 0;
+      // Drift = simple X offset + time delay
+      const delay = drift ? 150 + m * 200 + Math.random() * 300 : 0;
+      const xOff = drift ? 100 + m * 150 + Math.random() * 200 : 0;
       if (delay > 0) {
         mirrorQueue.push({ executeAt: performance.now() + delay, newStroke: true, channel: m });
       }
+      // Strong visual variation between mirrors
+      const otherTypes = types.filter(t => t !== brush.type);
       return {
-        xOff: drift ? p.xRange[0] + Math.random() * (p.xRange[1] - p.xRange[0]) : 0,
-        yScale: p.yRange[0] + Math.random() * p.yRange[1],
-        pScale: p.pRange[0] + Math.random() * p.pRange[1],
-        vScale: 0.6 + Math.random() * 0.8,
-        rScale: p.rRange[0] + Math.random() * p.rRange[1],
+        xOff,
+        yScale: m === 0 ? 0.4 + Math.random() * 0.5 : 0.8 + Math.random() * 0.6,
+        pScale: 0.3 + Math.random() * 0.7,
+        vScale: 0.4 + Math.random() * 1.0,
+        rScale: m === 0 ? 0.2 + Math.random() * 0.6 : 0.8 + Math.random() * 1.5,
         opacScale: 1,
-        brushType: types[Math.floor(Math.random() * types.length)],
-        driftFreq: p.freqRange[0] + Math.random() * (p.freqRange[1] - p.freqRange[0]),
-        driftAmp: p.ampRange[0] + Math.random() * (p.ampRange[1] - p.ampRange[0]),
-        driftPhaseX: Math.random() * Math.PI * 2,
-        driftPhaseY: Math.random() * Math.PI * 2,
-        timeScale: p.tsRange[0] + Math.random() * p.tsRange[1],
+        brushType: otherTypes[Math.floor(Math.random() * otherTypes.length)],
         delay,
       };
     });

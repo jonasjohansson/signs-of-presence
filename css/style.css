@@ -100,7 +100,7 @@ canvas#main {
 }
 
 #sidebar.collapsed #menu-toggle {
-  transform: translateX(-130px);
+  transform: translateX(-150px);
   pointer-events: auto;
 }
 
@@ -110,7 +110,7 @@ canvas#main {
   right: 0;
   top: 0;
   bottom: 0;
-  width: 120px;
+  width: 140px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
@@ -121,7 +121,7 @@ canvas#main {
 }
 
 #sidebar.collapsed {
-  transform: translateX(130px);
+  transform: translateX(150px);
   pointer-events: none;
 }
 
@@ -247,12 +247,12 @@ canvas#main {
 /* ── Brush settings panel ── */
 #brush-panel {
   position: fixed;
-  right: 120px;
+  right: 140px;
   top: 50%;
   transform: translateY(-50%) scale(0.95);
   opacity: 0;
   pointer-events: none;
-  width: calc((100vw - 120px) * 0.25);
+  width: calc((100vw - 140px) * 0.25);
   background: rgba(0, 0, 0, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);

@@ -81,7 +81,7 @@ canvas#main {
 
 /* ── Menu toggle ── */
 #menu-toggle {
-  width: 32px;
+  width: 56px;
   height: 32px;
   border-radius: 8px;
   background: rgba(51, 51, 51, 0.8);

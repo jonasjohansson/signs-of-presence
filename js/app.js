@@ -42,6 +42,7 @@
     maxRadius: 40,
     opacity: 1.0,
     streamline: 0.60,
+    curveBias: 0.8,
     pressureCurve: 1.50,
     pressureToSize: 1.00,
     pressureToOpac: 0.15,
@@ -51,6 +52,9 @@
     tiltInfluence: 0.70,
     scatterRadius: 0,
     scatterDensity: 4,
+    taper: 0.5,         // 0–1: taper strokes at start/end
+    tremor: 0.15,       // 0–1: organic wobble perpendicular to stroke
+    inertia: 0.4,       // 0–1: stroke continues after pen lifts
     scrollSpeed: 0.5,
   };
 
@@ -64,6 +68,12 @@
     // tilt smoothing
     smTiltCos: 0, smTiltSin: 0, smAspect: 1,
     angle: 0, aspect: 1,
+    // point history for curve interpolation
+    history: [],
+    // taper tracking
+    totalDist: 0,
+    // tremor phase
+    tremorPhase: 0,
   };
 
   /* ════════════════════════════════════════════════
@@ -172,8 +182,9 @@
     sctx.restore();
   }
 
-  function stamp(x, y, pressure, velocity, angle, aspect) {
-    const r = computeRadius(pressure, velocity);
+  function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
+    let r = computeRadius(pressure, velocity);
+    if (taperMul !== undefined) r *= taperMul;
     const alpha = computeAlpha(pressure);
 
     if (brush.type === 'splatter') {
@@ -306,9 +317,12 @@
     stroke.smTiltCos = 0;
     stroke.smTiltSin = 0;
     stroke.smAspect = 1;
+    stroke.history = [{ x, y: cy, p }];
+    stroke.totalDist = 0;
+    stroke.tremorPhase = Math.random() * Math.PI * 2;
     computeTilt(e);
 
-    stamp(x, cy, p, 0, stroke.angle, stroke.aspect);
+    stamp(x, cy, p, 0, stroke.angle, stroke.aspect, brush.taper > 0 ? 0.1 : 1);
     updateHUD(e);
   }
 
@@ -338,12 +352,70 @@
       const vel = dist / dt;
       stroke.velocity += (vel - stroke.velocity) * 0.3;
       stroke.lastTime = now;
+      stroke.totalDist += dist;
 
-      strokeSegment(
-        stroke.prevX, stroke.prevY, stroke.prevP,
-        stroke.smoothX, stroke.smoothY, stroke.smoothP,
-        stroke.velocity, stroke.angle, stroke.aspect
-      );
+      // Compute taper multiplier (ease-in at stroke start)
+      const taperIn = brush.taper > 0
+        ? Math.min(1, stroke.totalDist / (brush.maxRadius * 3 * brush.taper))
+        : 1;
+
+      // Compute tremor: perpendicular displacement
+      const dirX = stroke.smoothX - stroke.prevX;
+      const dirY = stroke.smoothY - stroke.prevY;
+      const dirLen = Math.hypot(dirX, dirY) || 1;
+      const perpX = -dirY / dirLen;
+      const perpY = dirX / dirLen;
+
+      const h = stroke.history;
+      h.push({ x: stroke.smoothX, y: stroke.smoothY, p: stroke.smoothP });
+      const maxHist = 8 + Math.floor(brush.curveBias * 12);
+      if (h.length > maxHist) h.shift();
+
+      if (brush.curveBias > 0 && h.length >= 4) {
+        const bias = brush.curveBias;
+        const sh = [];
+        const win = Math.max(1, Math.floor(bias * 4));
+        for (let i = 0; i < h.length; i++) {
+          let sx = 0, sy = 0, sp = 0, cnt = 0;
+          for (let j = Math.max(0, i - win); j <= Math.min(h.length - 1, i + win); j++) {
+            sx += h[j].x; sy += h[j].y; sp += h[j].p; cnt++;
+          }
+          sh.push({ x: sx / cnt, y: sy / cnt, p: sp / cnt });
+        }
+        const n = sh.length;
+        const p0 = sh[n - 4], p1 = sh[n - 3], p2 = sh[n - 2], p3 = sh[n - 1];
+        const steps = Math.max(6, Math.ceil(dist / 1.5));
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const t2 = t * t, t3 = t2 * t;
+          const cx = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t +
+            (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+            (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+          const cy = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t +
+            (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+            (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+          const cp = p1.p + (p2.p - p1.p) * t;
+          const lx = stroke.prevX + (stroke.smoothX - stroke.prevX) * (i / steps);
+          const ly = stroke.prevY + (stroke.smoothY - stroke.prevY) * (i / steps);
+          let fx = lx + (cx - lx) * bias;
+          let fy = ly + (cy - ly) * bias;
+          // Apply tremor
+          if (brush.tremor > 0) {
+            stroke.tremorPhase += 0.3;
+            const wobble = Math.sin(stroke.tremorPhase) * brush.tremor * brush.maxRadius * 0.3;
+            fx += perpX * wobble;
+            fy += perpY * wobble;
+          }
+          stamp(fx, fy, cp, stroke.velocity, stroke.angle, stroke.aspect, taperIn);
+        }
+      } else {
+        strokeSegment(
+          stroke.prevX, stroke.prevY, stroke.prevP,
+          stroke.smoothX, stroke.smoothY, stroke.smoothP,
+          stroke.velocity, stroke.angle, stroke.aspect
+        );
+      }
+
       stroke.prevX = stroke.smoothX;
       stroke.prevY = stroke.smoothY;
       stroke.prevP = stroke.smoothP;
@@ -351,6 +423,27 @@
   }
 
   function onUp(e) {
+    if (stroke.active && brush.inertia > 0 && stroke.velocity > 0.01) {
+      // Continue stroke with decaying momentum
+      const dx = stroke.smoothX - stroke.prevX;
+      const dy = stroke.smoothY - stroke.prevY;
+      const len = Math.hypot(dx, dy) || 1;
+      const vx = (dx / len) * stroke.velocity;
+      const vy = (dy / len) * stroke.velocity;
+      const steps = Math.floor(brush.inertia * 20);
+      let ix = stroke.smoothX, iy = stroke.smoothY;
+      let ip = stroke.smoothP;
+      for (let i = 1; i <= steps; i++) {
+        const decay = 1 - i / steps;
+        const d2 = decay * decay;
+        ix += vx * d2 * 8;
+        iy += vy * d2 * 8;
+        ip *= 0.85;
+        // Taper out at stroke end
+        const taperOut = brush.taper > 0 ? decay * decay : 1;
+        stamp(ix, iy, ip, stroke.velocity * d2, stroke.angle, stroke.aspect, taperOut);
+      }
+    }
     stroke.active = false;
     if (e) updateHUD(e);
   }
@@ -506,6 +599,7 @@
   }
 
   bindRange('bp-stream',  'bpv-stream',  v => { brush.streamline = v / 100; });
+  bindRange('bp-curve',   'bpv-curve',   v => { brush.curveBias = v / 100; });
   bindRange('bp-pcurve',  'bpv-pcurve',  v => { brush.pressureCurve = v / 100; });
   bindRange('bp-psize',   'bpv-psize',   v => { brush.pressureToSize = v / 100; });
   bindRange('bp-popac',   'bpv-popac',   v => { brush.pressureToOpac = v / 100; });
@@ -513,6 +607,9 @@
   bindRange('bp-min',     'bpv-min',     v => { brush.minSizePct = v / 100; });
   bindRange('bp-soft',    'bpv-soft',    v => { brush.softness = v / 100; buildDab(); });
   bindRange('bp-tilt',    'bpv-tilt',    v => { brush.tiltInfluence = v / 100; });
+  bindRange('bp-taper',   'bpv-taper',   v => { brush.taper = v / 100; });
+  bindRange('bp-tremor',  'bpv-tremor',  v => { brush.tremor = v / 100; });
+  bindRange('bp-inertia', 'bpv-inertia', v => { brush.inertia = v / 100; });
   bindRange('bp-scatter', 'bpv-scatter', v => { brush.scatterRadius = v / 100; });
   bindRange('bp-sdens',   'bpv-sdens',   v => { brush.scatterDensity = Math.round(v); });
 

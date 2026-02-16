@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.35';
+  const VERSION = '0.36';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -342,6 +342,8 @@
     }
   }
 
+  let mirrorTime = 0;
+
   function mirrorStamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     // Record path for Flow effect
     if (flowEnabled && cur.flowPath) {
@@ -354,6 +356,7 @@
     // Primary stroke (channel 0)
     activeStampChannel = 0;
     stamp(x, y, pressure, velocity, angle, aspect, taperMul);
+    mirrorTime++;
 
     if (brush.mirror && trackBounds.length === 3) {
       const srcTrack = cur.sourceTrack;
@@ -368,10 +371,11 @@
         const trackMid = (tb.top + tb.bot) / 2;
         const trackHalf = (tb.bot - tb.top) / 2;
 
-        const jx = (Math.random() - 0.5) * mo.jitter;
-        const jy = (Math.random() - 0.5) * mo.jitter;
-        const mx = x + mo.xOff + jx;
-        const my = trackMid + relY * trackHalf * mo.yScale + jy;
+        const t = mirrorTime * mo.wanderSpeed;
+        const wx = Math.sin(t * mo.wanderFreq + mo.wanderPhaseX) * mo.wanderAmpX;
+        const wy = Math.cos(t * mo.wanderFreq * 1.3 + mo.wanderPhaseY) * mo.wanderAmpY;
+        const mx = x + mo.xOff + wx;
+        const my = trackMid + relY * trackHalf * mo.yScale + wy;
 
         if (mo.delay > 0) {
           mirrorQueue.push({
@@ -506,7 +510,7 @@
     cur.tremorPhase = Math.random() * Math.PI * 2;
     cur.sourceTrack = detectTrack(y);
 
-    // Each mirror track gets a distinct personality: different brush + stroke variation
+    // Each mirror track: different brush type + organic path wandering
     const types = ['normal', 'splatter', 'particle'];
     const drift = brush.mirrorDrift;
     cur.mirrorOffsets = [0, 1].map((_, m) => {
@@ -517,13 +521,19 @@
       }
       return {
         xOff,
-        yScale: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 1.0),
-        pScale: 0.2 + Math.random() * 1.0,
-        vScale: 0.3 + Math.random() * 1.2,
-        rScale: 0.15 + Math.random() * 2.0,
+        yScale: 0.5 + Math.random() * 0.8,
+        pScale: 0.3 + Math.random() * 0.8,
+        vScale: 0.4 + Math.random() * 1.0,
+        rScale: 0.3 + Math.random() * 1.5,
         opacScale: 1,
         brushType: types[Math.floor(Math.random() * types.length)],
-        jitter: Math.random() * 8,
+        // Per-stamp organic path wandering (always active)
+        wanderFreq: 0.004 + Math.random() * 0.02,
+        wanderAmpX: 8 + Math.random() * 30,
+        wanderAmpY: 5 + Math.random() * 20,
+        wanderPhaseX: Math.random() * Math.PI * 2,
+        wanderPhaseY: Math.random() * Math.PI * 2,
+        wanderSpeed: 0.6 + Math.random() * 0.8,
         delay,
       };
     });

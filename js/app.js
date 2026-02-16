@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 09:27';
+  const BUILD = '2026-02-16 09:32';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -42,7 +42,7 @@
 
   const brush = {
     type: 'normal',  // 'normal', 'splatter', 'particle'
-    maxRadius: 4,
+    maxRadius: 12,
     opacity: 1.0,
     streamline: 0.60,
     curveBias: 0.8,
@@ -667,7 +667,7 @@
     brushDot.style.opacity = brush.opacity;
   }
 
-  setupSlider('vs-size', 'vsf-size', 0.5, 8, brush.maxRadius, v => {
+  setupSlider('vs-size', 'vsf-size', 0.5, 24, brush.maxRadius, v => {
     brush.maxRadius = v;
     updatePreview();
   });
@@ -707,9 +707,9 @@
     document.querySelectorAll('.bt-btn[data-type]').forEach(b =>
       b.classList.toggle('active', b.dataset.type === type));
 
-    const size = 0.5 + Math.random() * 7.5;
+    const size = 0.5 + Math.random() * 23.5;
     brush.maxRadius = size;
-    const sizePct = (size - 0.5) / (8 - 0.5);
+    const sizePct = (size - 0.5) / (24 - 0.5);
     document.getElementById('vsf-size').style.height = (sizePct * 100) + '%';
     updatePreview();
 

@@ -1,11 +1,6 @@
 (() => {
-  fetch('js/app.js', { method: 'HEAD' }).then(r => {
-    const lm = r.headers.get('last-modified');
-    if (lm) {
-      document.getElementById('s-version').textContent =
-        new Date(lm).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', dateStyle: 'short', timeStyle: 'short' });
-    }
-  });
+  const BUILD = '2026-02-16 09:25';
+  document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
    *  Canvas setup

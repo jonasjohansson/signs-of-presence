@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T08:57';
+  const BUILD = '2026-02-16T09:00';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════

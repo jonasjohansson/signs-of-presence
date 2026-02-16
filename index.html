@@ -81,7 +81,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 // Block iOS/iPadOS system gestures on canvas only
 const cvs = document.getElementById('main');
 ['gesturestart','gesturechange','gestureend','contextmenu','selectstart',
- 'dragstart','copy','dblclick','touchforcechange','touchend'].forEach(evt => {
+ 'dragstart','copy','dblclick','touchforcechange'].forEach(evt => {
   cvs.addEventListener(evt, e => e.preventDefault(), { passive: false });
 });
 cvs.addEventListener('touchstart', e => {

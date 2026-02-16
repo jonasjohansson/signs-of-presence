@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T08:32';
+  const BUILD = '2026-02-16T08:36';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -48,7 +48,7 @@
     curveBias: 0.8,
     pressureCurve: 1.50,
     pressureToSize: 1.00,
-    pressureToOpac: 0.15,
+    pressureToOpac: 0,
     speedThinning: 0.30,
     minSizePct: 0.01,
     softness: 0.15,
@@ -418,7 +418,7 @@
       pScale: 0.3 + Math.random() * 0.7,
       vScale: 0.5 + Math.random() * 1.0,
       rScale: 0.3 + Math.random() * 1.7,       // radius multiplier
-      opacScale: 0.4 + Math.random() * 0.6,     // opacity multiplier
+      opacScale: 1,
       brushType: types[Math.floor(Math.random() * types.length)],
       driftFreq: 0.01 + Math.random() * 0.03,   // path wander frequency
       driftAmp: 10 + Math.random() * 40,         // path wander amplitude
@@ -695,7 +695,7 @@
     setSlider('bp-curve',   'bpv-curve',   Math.floor(Math.random() * 100));
     setSlider('bp-pcurve',  'bpv-pcurve',  Math.floor(50 + Math.random() * 250));
     setSlider('bp-psize',   'bpv-psize',   Math.floor(30 + Math.random() * 70));
-    setSlider('bp-popac',   'bpv-popac',   Math.floor(Math.random() * 60));
+    setSlider('bp-popac',   'bpv-popac',   0);
     setSlider('bp-vel',     'bpv-vel',     Math.floor(Math.random() * 80));
     setSlider('bp-min',     'bpv-min',     Math.floor(1 + Math.random() * 30));
     setSlider('bp-soft',    'bpv-soft',    Math.floor(Math.random() * 60));

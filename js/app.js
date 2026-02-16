@@ -180,7 +180,9 @@
    *  Brush engine
    * ════════════════════════════════════════════════ */
   function remapPressure(p) {
-    return Math.min(1, p / 0.75); // stylus range 0–0.75 → 0–1
+    // Keep low pressures thin, scale up so 0.75 hits max
+    const scaled = p / 0.75;
+    return Math.min(1, scaled * scaled); // quadratic: preserves thin at light touch
   }
 
   function computeRadius(pressure, velocity) {

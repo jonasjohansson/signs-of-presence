@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.33';
+  const VERSION = '0.34';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -368,8 +368,10 @@
         const trackMid = (tb.top + tb.bot) / 2;
         const trackHalf = (tb.bot - tb.top) / 2;
 
-        const mx = x + mo.xOff;
-        const my = trackMid + relY * trackHalf * mo.yScale;
+        const jx = (Math.random() - 0.5) * mo.jitter;
+        const jy = (Math.random() - 0.5) * mo.jitter;
+        const mx = x + mo.xOff + jx;
+        const my = trackMid + relY * trackHalf * mo.yScale + jy;
 
         if (mo.delay > 0) {
           mirrorQueue.push({
@@ -504,8 +506,7 @@
     cur.tremorPhase = Math.random() * Math.PI * 2;
     cur.sourceTrack = detectTrack(y);
 
-    // Each mirror track gets a distinct visual personality
-    const types = ['normal', 'splatter', 'particle'];
+    // Each mirror track gets a distinct stroke personality (same brush, different feel)
     const drift = brush.mirrorDrift;
     cur.mirrorOffsets = [0, 1].map((_, m) => {
       // Drift = simple X offset + time delay
@@ -514,16 +515,15 @@
       if (delay > 0) {
         mirrorQueue.push({ executeAt: performance.now() + delay, newStroke: true, channel: m });
       }
-      // Strong visual variation between mirrors
-      const otherTypes = types.filter(t => t !== brush.type);
       return {
         xOff,
-        yScale: m === 0 ? 0.4 + Math.random() * 0.5 : 0.8 + Math.random() * 0.6,
-        pScale: 0.3 + Math.random() * 0.7,
-        vScale: 0.4 + Math.random() * 1.0,
-        rScale: m === 0 ? 0.2 + Math.random() * 0.6 : 0.8 + Math.random() * 1.5,
+        yScale: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 1.0), // may flip Y
+        pScale: 0.2 + Math.random() * 1.0,
+        vScale: 0.3 + Math.random() * 1.2,
+        rScale: 0.15 + Math.random() * 2.0,
         opacScale: 1,
-        brushType: otherTypes[Math.floor(Math.random() * otherTypes.length)],
+        brushType: brush.type, // same brush, different stroke
+        jitter: Math.random() * 8, // positional noise
         delay,
       };
     });

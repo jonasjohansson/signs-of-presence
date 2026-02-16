@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.21';
+  const VERSION = '0.22';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -798,13 +798,13 @@
               life, maxLife: life, size: (0.8 + Math.random() * 2.0) * dpr,
               branchProb: 0.03 + Math.random() * 0.04 });
           }
-          if (flockEnabled && flockParticles.length < MAX_FLOCK && Math.random() < 0.4) {
-            const speed = (1 + Math.random() * 1.5) * dpr;
+          if (flockEnabled && flockParticles.length < MAX_FLOCK && Math.random() < 0.35) {
+            const speed = (0.6 + Math.random() * 1.0) * dpr;
             const angle = Math.atan2(ndy, ndx) + (Math.random() - 0.5) * 1.0;
-            const life = 200 + Math.random() * 400;
+            const life = 80 + Math.random() * 160;
             flockParticles.push({ x: ex, y: ey,
               vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-              life, maxLife: life, size: (0.8 + Math.random() * 1.5) * dpr });
+              wander: angle, life, maxLife: life, size: (0.5 + Math.random() * 1.0) * dpr });
           }
         }
       }
@@ -881,8 +881,8 @@
 
     // ── Flock: boids swarm ──
     if (flockEnabled && flockParticles.length > 0) {
-      const SEP_R = 18 * dpr, ALI_R = 50 * dpr, COH_R = 80 * dpr;
-      const MAX_SPD = 2.5 * dpr, MAX_F = 0.15 * dpr;
+      const SEP_R = 14 * dpr, ALI_R = 40 * dpr, COH_R = 70 * dpr;
+      const MAX_SPD = 1.6 * dpr, MAX_F = 0.08 * dpr;
       for (let i = flockParticles.length - 1; i >= 0; i--) {
         const b = flockParticles[i]; b.life--;
         if (b.life <= 0 || b.x < -40) { flockParticles.splice(i, 1); continue; }
@@ -895,12 +895,14 @@
           if (d < ALI_R) { ax += o.vx; ay += o.vy; ac++; }
           if (d < COH_R) { cx += o.x; cy += o.y; cc++; }
         }
-        let fx = (Math.random() - 0.5) * 0.3, fy = (Math.random() - 0.5) * 0.3;
-        if (sc > 0) { const l = Math.hypot(sx, sy) || 1; fx += sx / l * 1.8; fy += sy / l * 1.8; }
-        if (ac > 0) { ax /= ac; ay /= ac; const l = Math.hypot(ax, ay) || 1; fx += (ax / l * MAX_SPD - b.vx) * 0.05; fy += (ay / l * MAX_SPD - b.vy) * 0.05; }
-        if (cc > 0) { cx = cx / cc - b.x; cy = cy / cc - b.y; const l = Math.hypot(cx, cy) || 1; fx += cx / l * 0.04; fy += cy / l * 0.04; }
+        // Smooth wander angle for organic curves
+        b.wander += (Math.random() - 0.5) * 0.3;
+        let fx = Math.cos(b.wander) * 0.06, fy = Math.sin(b.wander) * 0.06;
+        if (sc > 0) { const l = Math.hypot(sx, sy) || 1; fx += sx / l * 1.0; fy += sy / l * 1.0; }
+        if (ac > 0) { ax /= ac; ay /= ac; const l = Math.hypot(ax, ay) || 1; fx += (ax / l * MAX_SPD - b.vx) * 0.03; fy += (ay / l * MAX_SPD - b.vy) * 0.03; }
+        if (cc > 0) { cx = cx / cc - b.x; cy = cy / cc - b.y; const l = Math.hypot(cx, cy) || 1; fx += cx / l * 0.025; fy += cy / l * 0.025; }
         const fl = Math.hypot(fx, fy); if (fl > MAX_F) { fx = fx / fl * MAX_F; fy = fy / fl * MAX_F; }
-        b.vx += fx; b.vy += fy;
+        b.vx = b.vx * 0.96 + fx; b.vy = b.vy * 0.96 + fy;
         const spd = Math.hypot(b.vx, b.vy); if (spd > MAX_SPD) { b.vx = b.vx / spd * MAX_SPD; b.vy = b.vy / spd * MAX_SPD; }
         b.x += b.vx; b.y += b.vy;
       }
@@ -909,9 +911,9 @@
       sctx.fillStyle = '#fff';
       for (const b of flockParticles) {
         const lp = b.life / b.maxLife;
-        sctx.globalAlpha = Math.min(lp * 5, 1) * lp * 0.7;
+        sctx.globalAlpha = Math.min(lp * 4, 1) * lp * 0.35;
         sctx.beginPath();
-        sctx.arc(b.x, b.y, b.size * (0.4 + lp * 0.6), 0, Math.PI * 2);
+        sctx.arc(b.x, b.y, b.size * (0.3 + lp * 0.7), 0, Math.PI * 2);
         sctx.fill();
       }
       sctx.restore();

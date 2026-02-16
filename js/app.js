@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T08:40';
+  const BUILD = '2026-02-16T08:45';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -682,8 +682,8 @@
     const types = ['normal', 'splatter', 'particle'];
     const type = types[Math.floor(Math.random() * types.length)];
     brush.type = type;
-    const btBtns = document.querySelectorAll('.bt-btn[data-type]');
-    btBtns.forEach(b => b.classList.toggle('active', b.dataset.type === type));
+    document.querySelectorAll('.bt-btn[data-type]').forEach(b =>
+      b.classList.toggle('active', b.dataset.type === type));
 
     const size = 0.5 + Math.random() * 7.5;
     brush.maxRadius = size;
@@ -711,6 +711,13 @@
     autoRandom = !autoRandom;
     btnRandom.classList.toggle('active', autoRandom);
     if (autoRandom) randomizeBrush();
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    sctx.save();
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.clearRect(0, 0, score.width, score.height);
+    sctx.restore();
   });
 
   const btnMirror = document.getElementById('btn-mirror');
@@ -759,7 +766,7 @@
 /* ════════════════════════════════════════════════
    *  UI: brush type selector
    * ════════════════════════════════════════════════ */
-  const btBtns = document.querySelectorAll('.bt-btn');
+  const btBtns = document.querySelectorAll('.bt-btn[data-type]');
   btBtns.forEach(btn => {
     btn.addEventListener('click', e => {
       e.preventDefault();

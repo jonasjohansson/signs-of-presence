@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = new Date().toISOString().slice(0, 16);
+  const BUILD = new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', dateStyle: 'short', timeStyle: 'short' });
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════

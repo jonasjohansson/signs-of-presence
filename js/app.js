@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 09:25';
+  const BUILD = '2026-02-16 09:27';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -179,8 +179,12 @@
   /* ════════════════════════════════════════════════
    *  Brush engine
    * ════════════════════════════════════════════════ */
+  function remapPressure(p) {
+    return Math.min(1, p * 2); // stylus range ~0.01–0.5 → 0–1
+  }
+
   function computeRadius(pressure, velocity) {
-    const pMapped = Math.pow(Math.max(pressure, 0.001), brush.pressureCurve);
+    const pMapped = Math.pow(Math.max(remapPressure(pressure), 0.001), brush.pressureCurve);
     const sizeT = 1 - brush.pressureToSize * (1 - pMapped);
     let r = brush.maxRadius * Math.max(brush.minSizePct, sizeT);
     if (brush.speedThinning > 0 && velocity > 0) {
@@ -191,7 +195,7 @@
   }
 
   function computeAlpha(pressure) {
-    const pMapped = Math.pow(Math.max(pressure, 0.001), brush.pressureCurve);
+    const pMapped = Math.pow(Math.max(remapPressure(pressure), 0.001), brush.pressureCurve);
     const opacT = 1 - brush.pressureToOpac * (1 - pMapped);
     return brush.opacity * Math.max(0.03, opacT);
   }

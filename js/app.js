@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 09:47';
+  const BUILD = '2026-02-16 10:14';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -111,10 +111,10 @@
     canvas.height = H * dpr;
     score.width = W * dpr;
     score.height = H * dpr;
-    bloomCvs.width = W * dpr;
-    bloomCvs.height = H * dpr;
     pulseCvs.width = W * dpr;
     pulseCvs.height = H * dpr;
+    bleedSample.width = Math.ceil(W * dpr / BLEED_SCALE);
+    bleedSample.height = Math.ceil(H * dpr / BLEED_SCALE);
 
     if (tmp.width > 0 && tmp.height > 0)
       sctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, 0, 0, score.width, score.height);
@@ -228,19 +228,23 @@
   ];
   const mirrorQueue = [];
   let scrollAccum = 0;
-  let vfxEnabled = false;
   let pulseEnabled = false;
   let pulsePhase = 0;
+  let warpEnabled = false;
+  let warpPhase = 0;
+  let bleedEnabled = false;
+  let bleedParticles = [];
+  let bleedFrame = 0;
+  const MAX_BLEED_PARTICLES = 400;
 
-  // Offscreen canvas for pulse masking
+  // Pulse canvas: offscreen for band masking
   const pulseCvs = document.createElement('canvas');
   const pctx = pulseCvs.getContext('2d');
 
-  // Bloom canvas: CSS-filtered overlay for Safari/WebKit compatibility
-  const bloomCvs = document.createElement('canvas');
-  bloomCvs.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;mix-blend-mode:screen;opacity:0.5;filter:blur(10px);display:none;';
-  document.body.appendChild(bloomCvs);
-  const bctx = bloomCvs.getContext('2d');
+  // Bleed: small canvas for edge sampling (GPU→CPU fast at low res)
+  const BLEED_SCALE = 8;
+  const bleedSample = document.createElement('canvas');
+  const bsCtx = bleedSample.getContext('2d', { willReadFrequently: true });
 
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     let r = computeRadius(pressure, velocity);
@@ -453,7 +457,10 @@
     pos: document.getElementById('s-pos'),
   };
 
+  let _flashHUD = null; // set after init
+
   function updateHUD(e) {
+    if (_flashHUD) _flashHUD();
     hud.type.textContent = e.pointerType || '--';
     const p = e.pressure ?? 0;
     hud.pressure.textContent = p.toFixed(3);
@@ -678,73 +685,188 @@
           s.smoothX -= brush.scrollSpeed;
         }
       }
+      for (const bp of bleedParticles) {
+        bp.x -= shift;
+        bp.px -= shift;
+      }
+    }
+
+    // Bleed: particle-based watercolor diffusion
+    if (bleedEnabled) {
+      bleedFrame++;
+
+      // Sample edges every 3 frames via downscaled canvas
+      if (bleedFrame % 3 === 0) {
+        const sw = bleedSample.width, sh = bleedSample.height;
+        bsCtx.clearRect(0, 0, sw, sh);
+        bsCtx.drawImage(score, 0, 0, sw, sh);
+        const img = bsCtx.getImageData(0, 0, sw, sh);
+        const px = img.data;
+
+        const attempts = 25;
+        for (let a = 0; a < attempts; a++) {
+          if (bleedParticles.length >= MAX_BLEED_PARTICLES) break;
+          const sx = Math.floor(Math.random() * sw);
+          const sy = Math.floor(Math.random() * sh);
+          const idx = (sy * sw + sx) * 4;
+          if (px[idx] < 40) continue;
+
+          // Edge check: bright pixel with at least one dark neighbor
+          let isEdge = false;
+          let dirX = 0, dirY = 0;
+          for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]]) {
+            const nx = sx + dx, ny = sy + dy;
+            if (nx < 0 || nx >= sw || ny < 0 || ny >= sh) { isEdge = true; continue; }
+            if (px[(ny * sw + nx) * 4] < 30) {
+              isEdge = true;
+              dirX += dx; dirY += dy;
+            }
+          }
+          if (!isEdge) continue;
+
+          const dirLen = Math.hypot(dirX, dirY) || 1;
+          dirX /= dirLen; dirY /= dirLen;
+          const fx = sx * BLEED_SCALE;
+          const fy = sy * BLEED_SCALE;
+          const speed = 0.2 + Math.random() * 0.6;
+          const life = 40 + Math.random() * 80;
+
+          bleedParticles.push({
+            x: fx, y: fy, px: fx, py: fy,
+            vx: dirX * speed,
+            vy: dirY * speed + 0.08,
+            life, maxLife: life,
+            size: (0.3 + Math.random() * 1.2) * dpr,
+            alpha: 0.012 + Math.random() * 0.02,
+            wobbleFreq: 0.05 + Math.random() * 0.15,
+            wobbleAmp: 0.4 + Math.random() * 1.2,
+            wobblePhase: Math.random() * Math.PI * 2,
+          });
+        }
+      }
+
+      // Update and draw particles onto score
+      sctx.save();
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.fillStyle = '#fff';
+      sctx.strokeStyle = '#fff';
+      sctx.lineCap = 'round';
+
+      for (let i = bleedParticles.length - 1; i >= 0; i--) {
+        const p = bleedParticles[i];
+        p.px = p.x; p.py = p.y;
+
+        // Brownian motion + wobble → organic tendril paths
+        p.wobblePhase += p.wobbleFreq;
+        p.vx += (Math.random() - 0.5) * 0.25 + Math.sin(p.wobblePhase) * p.wobbleAmp * 0.08;
+        p.vy += (Math.random() - 0.5) * 0.25 + Math.cos(p.wobblePhase * 1.3) * p.wobbleAmp * 0.06;
+        p.vy += 0.015; // slight gravity
+        p.vx *= 0.97; p.vy *= 0.97; // damping
+        p.x += p.vx; p.y += p.vy;
+        p.life--;
+
+        if (p.life <= 0 || p.x < -50) {
+          bleedParticles.splice(i, 1);
+          continue;
+        }
+
+        const lifePct = p.life / p.maxLife;
+        const alpha = p.alpha * lifePct * lifePct;
+        const size = p.size * (0.3 + lifePct * 0.7);
+
+        // Draw tendril line from previous to current position
+        sctx.globalAlpha = alpha;
+        sctx.lineWidth = size;
+        sctx.beginPath();
+        sctx.moveTo(p.px, p.py);
+        sctx.lineTo(p.x, p.y);
+        sctx.stroke();
+
+        // Branching: occasionally spawn sub-tendril
+        if (Math.random() < 0.02 && bleedParticles.length < MAX_BLEED_PARTICLES) {
+          const ba = Math.atan2(p.vy, p.vx) + (Math.random() - 0.5) * Math.PI * 0.8;
+          const bs = 0.15 + Math.random() * 0.3;
+          const bl = Math.floor(p.life * 0.4);
+          bleedParticles.push({
+            x: p.x, y: p.y, px: p.x, py: p.y,
+            vx: Math.cos(ba) * bs, vy: Math.sin(ba) * bs + 0.04,
+            life: bl, maxLife: bl,
+            size: p.size * 0.6, alpha: p.alpha * 0.6,
+            wobbleFreq: 0.06 + Math.random() * 0.12,
+            wobbleAmp: 0.3 + Math.random() * 0.8,
+            wobblePhase: Math.random() * Math.PI * 2,
+          });
+        }
+      }
+
+      sctx.restore();
     }
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (pulseEnabled) {
-      ctx.globalAlpha = 0.25;
-      ctx.drawImage(score, 0, 0);
-      ctx.globalAlpha = 1;
+
+    if (warpEnabled) {
+      // Dual-axis sine-wave distortion — liquid/underwater feel
+      warpPhase += 0.035;
+      const sh = 20;
+      for (let y = 0; y < canvas.height; y += sh) {
+        const offX = Math.sin(y * 0.018 + warpPhase) * 12 * dpr
+                   + Math.sin(y * 0.006 + warpPhase * 1.7) * 6 * dpr;
+        const offY = Math.cos(y * 0.012 + warpPhase * 0.8) * 3 * dpr;
+        ctx.drawImage(score, 0, y, score.width, sh, offX, y + offY, canvas.width, sh);
+      }
     } else {
       ctx.drawImage(score, 0, 0);
     }
-    ctx.restore();
 
-    // VFX glow: CSS-filtered overlay canvas (Safari compatible)
-    if (vfxEnabled) {
-      bloomCvs.style.display = 'block';
-      bctx.setTransform(1, 0, 0, 1, 0, 0);
-      bctx.clearRect(0, 0, bloomCvs.width, bloomCvs.height);
-      bctx.drawImage(score, 0, 0);
-    } else {
-      bloomCvs.style.display = 'none';
-    }
-
-    // Pulse: bright band that only lights up drawn shapes
+    // Pulse: expanding glow band sweeping through shapes
     if (pulseEnabled) {
-      pulsePhase += 0.008;
+      pulsePhase += 0.006;
       if (pulsePhase > 1) pulsePhase -= 1;
 
+      const pw = pulseCvs.width, ph = pulseCvs.height;
       pctx.setTransform(1, 0, 0, 1, 0, 0);
-      pctx.clearRect(0, 0, pulseCvs.width, pulseCvs.height);
-      // Copy score shapes (white on transparent)
+      pctx.clearRect(0, 0, pw, ph);
       pctx.drawImage(score, 0, 0);
-      // Mask: keep only shapes within the pulse band
       pctx.globalCompositeOperation = 'source-in';
-      const pw = pulseCvs.width;
-      const bandW = pw * 0.15;
+      const bandW = pw * 0.2;
       const bandX = (1 - pulsePhase) * (pw + bandW) - bandW;
       const grad = pctx.createLinearGradient(bandX, 0, bandX + bandW, 0);
-      grad.addColorStop(0, 'rgba(255,255,255,0)');
-      grad.addColorStop(0.4, 'rgba(255,255,255,0.8)');
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(0.35, 'rgba(255,255,255,0.6)');
       grad.addColorStop(0.5, 'rgba(255,255,255,1)');
-      grad.addColorStop(0.6, 'rgba(255,255,255,0.8)');
-      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      grad.addColorStop(0.65, 'rgba(255,255,255,0.6)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
       pctx.fillStyle = grad;
-      pctx.fillRect(0, 0, pulseCvs.width, pulseCvs.height);
+      pctx.fillRect(0, 0, pw, ph);
       pctx.globalCompositeOperation = 'source-over';
 
-      // Draw masked pulse onto display with additive blend
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.drawImage(pulseCvs, 0, 0);
-      ctx.restore();
+      // Draw 8 offset copies → shapes briefly expand/glow outward in the band
+      ctx.globalAlpha = 0.3;
+      const ex = 6 * dpr;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        ctx.drawImage(pulseCvs, Math.cos(a) * ex, Math.sin(a) * ex);
+      }
+      ctx.globalAlpha = 1;
     }
+
+    ctx.restore();
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
     ctx.lineWidth = 0.5;
+    ctx.setLineDash([8, 12]);
     for (const y of lanes) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(W, y);
       ctx.stroke();
     }
+    ctx.setLineDash([]);
 
     requestAnimationFrame(frame);
   }
@@ -794,7 +916,7 @@
     brushDot.style.opacity = brush.opacity;
   }
 
-  setupSlider('vs-size', 'vsf-size', 0.5, 24, brush.maxRadius, v => {
+  setupSlider('vs-size', 'vsf-size', 0.5, 48, brush.maxRadius, v => {
     brush.maxRadius = v;
     updatePreview();
   });
@@ -834,9 +956,9 @@
     document.querySelectorAll('.bt-btn[data-type]').forEach(b =>
       b.classList.toggle('active', b.dataset.type === type));
 
-    const size = 0.5 + Math.random() * 23.5;
+    const size = 0.5 + Math.random() * 47.5;
     brush.maxRadius = size;
-    const sizePct = (size - 0.5) / (24 - 0.5);
+    const sizePct = (size - 0.5) / (48 - 0.5);
     document.getElementById('vsf-size').style.height = (sizePct * 100) + '%';
     updatePreview();
 
@@ -854,6 +976,34 @@
     setSlider('bp-scatter', 'bpv-scatter', Math.floor(Math.random() * 40));
   }
 
+  function resetBrushDefaults() {
+    autoRandom = false;
+    btnRandom.classList.remove('active');
+
+    brush.type = 'normal';
+    document.querySelectorAll('.bt-btn[data-type]').forEach(b =>
+      b.classList.toggle('active', b.dataset.type === 'normal'));
+
+    brush.maxRadius = 24;
+    document.getElementById('vsf-size').style.height = ((24 - 0.5) / (48 - 0.5) * 100) + '%';
+    updatePreview();
+
+    setSlider('bp-stream',  'bpv-stream',  60);
+    setSlider('bp-curve',   'bpv-curve',   80);
+    setSlider('bp-pcurve',  'bpv-pcurve',  70);
+    setSlider('bp-psize',   'bpv-psize',   100);
+    setSlider('bp-popac',   'bpv-popac',   0);
+    setSlider('bp-vel',     'bpv-vel',     30);
+    setSlider('bp-min',     'bpv-min',     1);
+    setSlider('bp-soft',    'bpv-soft',    15);
+    setSlider('bp-tilt',    'bpv-tilt',    70);
+    setSlider('bp-taper',   'bpv-taper',   20);
+    setSlider('bp-tremor',  'bpv-tremor',  0);
+    setSlider('bp-inertia', 'bpv-inertia', 20);
+    setSlider('bp-scatter', 'bpv-scatter', 0);
+    setSlider('bp-sdens',   'bpv-sdens',   4);
+  }
+
   const btnRandom = document.getElementById('btn-random');
   btnRandom.addEventListener('click', () => {
     autoRandom = !autoRandom;
@@ -861,12 +1011,19 @@
     if (autoRandom) randomizeBrush();
   });
 
-  document.getElementById('btn-clear').addEventListener('click', () => {
+  document.getElementById('btn-default').addEventListener('click', resetBrushDefaults);
+
+  function clearCanvas() {
     sctx.save();
     sctx.setTransform(1, 0, 0, 1, 0, 0);
     sctx.clearRect(0, 0, score.width, score.height);
     sctx.restore();
-  });
+    mirrorQueue.length = 0;
+    mirrorLastStamp[0].has = false;
+    mirrorLastStamp[1].has = false;
+  }
+
+  document.getElementById('btn-clear').addEventListener('click', clearCanvas);
 
   const btnMirror = document.getElementById('btn-mirror');
   btnMirror.addEventListener('click', () => {
@@ -880,16 +1037,22 @@
     btnDrift.classList.toggle('active', brush.mirrorDrift);
   });
 
-  const btnVfx = document.getElementById('btn-vfx');
-  btnVfx.addEventListener('click', () => {
-    vfxEnabled = !vfxEnabled;
-    btnVfx.classList.toggle('active', vfxEnabled);
+  const btnWarp = document.getElementById('btn-warp');
+  btnWarp.addEventListener('click', () => {
+    warpEnabled = !warpEnabled;
+    btnWarp.classList.toggle('active', warpEnabled);
   });
 
   const btnPulse = document.getElementById('btn-pulse');
   btnPulse.addEventListener('click', () => {
     pulseEnabled = !pulseEnabled;
     btnPulse.classList.toggle('active', pulseEnabled);
+  });
+
+  const btnBleed = document.getElementById('btn-bleed');
+  btnBleed.addEventListener('click', () => {
+    bleedEnabled = !bleedEnabled;
+    btnBleed.classList.toggle('active', bleedEnabled);
   });
 
   document.getElementById('bp-close').addEventListener('click', () => {
@@ -942,6 +1105,41 @@
       brush.type = btn.dataset.type;
     });
   });
+
+  /* ════════════════════════════════════════════════
+   *  Keyboard shortcuts (for external keyboard use)
+   * ════════════════════════════════════════════════ */
+  document.addEventListener('keydown', e => {
+    if (brushPanel.classList.contains('open')) return;
+    switch (e.key.toLowerCase()) {
+      case 'm': btnMirror.click(); break;
+      case 'd': btnDrift.click(); break;
+      case 'p': btnPulse.click(); break;
+      case 'w': btnWarp.click(); break;
+      case 'b': btnBleed.click(); break;
+      case 'r': btnRandom.click(); break;
+      case 'c': clearCanvas(); break;
+      case '0': resetBrushDefaults(); break;
+      case '1': document.querySelector('.bt-btn[data-type="normal"]').click(); break;
+      case '2': document.querySelector('.bt-btn[data-type="splatter"]').click(); break;
+      case '3': document.querySelector('.bt-btn[data-type="particle"]').click(); break;
+    }
+  });
+
+  /* ════════════════════════════════════════════════
+   *  HUD auto-hide (fades after 3s inactivity)
+   * ════════════════════════════════════════════════ */
+  const topBar = document.getElementById('top-bar');
+  topBar.style.transition = 'opacity 0.5s';
+  let hudTimeout = setTimeout(() => { topBar.style.opacity = '0'; }, 3000);
+
+  _flashHUD = function() {
+    topBar.style.opacity = '1';
+    clearTimeout(hudTimeout);
+    hudTimeout = setTimeout(() => { topBar.style.opacity = '0'; }, 3000);
+  };
+
+  canvas.addEventListener('pointerenter', _flashHUD);
 
   /* ════════════════════════════════════════════════
    *  Init

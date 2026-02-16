@@ -33,9 +33,9 @@
    *  App state
    * ════════════════════════════════════════════════ */
   let W, H, dpr;
+  const SIDEBAR_W = 100;
   let lanes = [];
   let trackBounds = [];
-  let paused = false;
 
   const brush = {
     type: 'normal',  // 'normal', 'splatter', 'particle'
@@ -282,15 +282,19 @@
 
     const x = e.clientX, y = e.clientY, p = e.pressure || 0.5;
 
-    if (x < W * 0.75) return;
+    const boxR = W - SIDEBAR_W;
+    if (x < boxR * 0.75 || x > boxR) return;
 
+    let inTrack = false;
     for (const tb of trackBounds) {
       if (y >= tb.top && y <= tb.bot) {
         stroke.trackTop = tb.top;
         stroke.trackBot = tb.bot;
+        inTrack = true;
         break;
       }
     }
+    if (!inTrack) return;
 
     stroke.active = true;
     const cy = Math.max(stroke.trackTop, Math.min(stroke.trackBot, y));
@@ -317,7 +321,8 @@
     const now = performance.now();
 
     for (const ce of events) {
-      const rx = ce.clientX;
+      const boxR = W - SIDEBAR_W;
+      const rx = Math.max(boxR * 0.75, Math.min(boxR, ce.clientX));
       const ry = Math.max(stroke.trackTop, Math.min(stroke.trackBot, ce.clientY));
       const rp = ce.pressure || 0.5;
 
@@ -359,7 +364,7 @@
    *  Render loop
    * ════════════════════════════════════════════════ */
   function frame() {
-    if (!paused && brush.scrollSpeed > 0) {
+    if (brush.scrollSpeed > 0) {
       const shift = brush.scrollSpeed * dpr;
       sctx.save();
       sctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -389,7 +394,6 @@
       ctx.fillRect(0, trackBounds[1].bot, W, trackBounds[2].top - trackBounds[1].bot);
       ctx.fillRect(0, trackBounds[2].bot, W, H - trackBounds[2].bot);
 
-      // Tint each track in the draw zone
       const trackColors = [
         'rgb(80,120,200)',
         'rgb(120,200,80)',
@@ -399,16 +403,14 @@
         const tb = trackBounds[i];
         ctx.globalAlpha = 0.06;
         ctx.fillStyle = trackColors[i];
-        ctx.fillRect(W * 0.75, tb.top, W * 0.25, tb.bot - tb.top);
+        const boxR = W - SIDEBAR_W;
+        const boxL = boxR * 0.75;
+        ctx.fillRect(boxL, tb.top, boxR - boxL, tb.bot - tb.top);
         ctx.globalAlpha = 1;
         ctx.strokeStyle = trackColors[i];
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(W * 0.75, tb.top);
-        ctx.lineTo(W, tb.top);
-        ctx.moveTo(W * 0.75, tb.bot);
-        ctx.lineTo(W, tb.bot);
-        ctx.stroke();
+        ctx.strokeRect(boxL, tb.top, boxR - boxL, tb.bot - tb.top);
       }
     }
 
@@ -420,13 +422,6 @@
       ctx.lineTo(W, y);
       ctx.stroke();
     }
-
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(W * 0.75, 0);
-    ctx.lineTo(W * 0.75, H);
-    ctx.stroke();
 
     requestAnimationFrame(frame);
   }
@@ -521,24 +516,7 @@
   bindRange('bp-scatter', 'bpv-scatter', v => { brush.scatterRadius = v / 100; });
   bindRange('bp-sdens',   'bpv-sdens',   v => { brush.scatterDensity = Math.round(v); });
 
-  /* ════════════════════════════════════════════════
-   *  UI: action buttons
-   * ════════════════════════════════════════════════ */
-  document.getElementById('btn-clear').addEventListener('click', () => {
-    sctx.save();
-    sctx.setTransform(1, 0, 0, 1, 0, 0);
-    sctx.clearRect(0, 0, score.width, score.height);
-    sctx.restore();
-  });
-
-  const btnPause = document.getElementById('btn-pause');
-  btnPause.addEventListener('click', () => {
-    paused = !paused;
-    btnPause.classList.toggle('active', paused);
-    btnPause.innerHTML = paused ? '&#9654;' : '&#9646;&#9646;';
-  });
-
-  /* ════════════════════════════════════════════════
+/* ════════════════════════════════════════════════
    *  UI: brush type selector
    * ════════════════════════════════════════════════ */
   const btBtns = document.querySelectorAll('.bt-btn');

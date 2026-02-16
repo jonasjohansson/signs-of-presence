@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 09:41';
+  const BUILD = '2026-02-16 09:43';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -113,6 +113,8 @@
     score.height = H * dpr;
     bloomCvs.width = W * dpr;
     bloomCvs.height = H * dpr;
+    pulseCvs.width = W * dpr;
+    pulseCvs.height = H * dpr;
 
     if (tmp.width > 0 && tmp.height > 0)
       sctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, 0, 0, score.width, score.height);
@@ -229,6 +231,10 @@
   let vfxEnabled = false;
   let pulseEnabled = false;
   let pulsePhase = 0;
+
+  // Offscreen canvas for pulse masking
+  const pulseCvs = document.createElement('canvas');
+  const pctx = pulseCvs.getContext('2d');
 
   // Bloom canvas: CSS-filtered overlay for Safari/WebKit compatibility
   const bloomCvs = document.createElement('canvas');
@@ -691,25 +697,35 @@
       bloomCvs.style.display = 'none';
     }
 
-    // Pulse: bright band sweeping right-to-left through drawn shapes
+    // Pulse: bright band that only lights up drawn shapes
     if (pulseEnabled) {
       pulsePhase += 0.008;
       if (pulsePhase > 1) pulsePhase -= 1;
-      const pw = canvas.width;
+
+      pctx.setTransform(1, 0, 0, 1, 0, 0);
+      pctx.clearRect(0, 0, pulseCvs.width, pulseCvs.height);
+      // Copy score shapes (white on transparent)
+      pctx.drawImage(score, 0, 0);
+      // Mask: keep only shapes within the pulse band
+      pctx.globalCompositeOperation = 'source-in';
+      const pw = pulseCvs.width;
       const bandW = pw * 0.15;
       const bandX = (1 - pulsePhase) * (pw + bandW) - bandW;
+      const grad = pctx.createLinearGradient(bandX, 0, bandX + bandW, 0);
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(0.4, 'rgba(255,255,255,0.8)');
+      grad.addColorStop(0.5, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.6, 'rgba(255,255,255,0.8)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      pctx.fillStyle = grad;
+      pctx.fillRect(0, 0, pulseCvs.width, pulseCvs.height);
+      pctx.globalCompositeOperation = 'source-over';
 
+      // Draw masked pulse onto display with additive blend
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalCompositeOperation = 'source-atop';
-      const grad = ctx.createLinearGradient(bandX, 0, bandX + bandW, 0);
-      grad.addColorStop(0, 'rgba(255,255,255,0)');
-      grad.addColorStop(0.4, 'rgba(255,255,255,0.6)');
-      grad.addColorStop(0.5, 'rgba(255,255,255,0.9)');
-      grad.addColorStop(0.6, 'rgba(255,255,255,0.6)');
-      grad.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(pulseCvs, 0, 0);
       ctx.restore();
     }
 

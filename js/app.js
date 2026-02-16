@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.22';
+  const VERSION = '0.23';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -745,7 +745,10 @@
         for (const pt of fp.points) pt.x -= cssShift;
       }
       for (const gb of growBranches) { gb.x -= shift; }
-      for (const fp of flockParticles) { fp.x -= shift; }
+      for (const fp of flockParticles) {
+        fp.x -= shift;
+        for (const tp of fp.trail) tp.x -= shift;
+      }
     }
 
     // ── Shared edge sampling for all VFX ──
@@ -804,7 +807,8 @@
             const life = 80 + Math.random() * 160;
             flockParticles.push({ x: ex, y: ey,
               vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-              wander: angle, life, maxLife: life, size: (0.5 + Math.random() * 1.0) * dpr });
+              wander: angle, life, maxLife: life, size: (0.5 + Math.random() * 1.0) * dpr,
+              trail: [{ x: ex, y: ey }] });
           }
         }
       }
@@ -879,10 +883,11 @@
       sctx.restore();
     }
 
-    // ── Flock: boids swarm ──
+    // ── Flock: boids simulation (update only, drawing is on display canvas) ──
     if (flockEnabled && flockParticles.length > 0) {
       const SEP_R = 14 * dpr, ALI_R = 40 * dpr, COH_R = 70 * dpr;
       const MAX_SPD = 1.6 * dpr, MAX_F = 0.08 * dpr;
+      const TRAIL_LEN = 20;
       for (let i = flockParticles.length - 1; i >= 0; i--) {
         const b = flockParticles[i]; b.life--;
         if (b.life <= 0 || b.x < -40) { flockParticles.splice(i, 1); continue; }
@@ -895,7 +900,6 @@
           if (d < ALI_R) { ax += o.vx; ay += o.vy; ac++; }
           if (d < COH_R) { cx += o.x; cy += o.y; cc++; }
         }
-        // Smooth wander angle for organic curves
         b.wander += (Math.random() - 0.5) * 0.3;
         let fx = Math.cos(b.wander) * 0.06, fy = Math.sin(b.wander) * 0.06;
         if (sc > 0) { const l = Math.hypot(sx, sy) || 1; fx += sx / l * 1.0; fy += sy / l * 1.0; }
@@ -905,18 +909,9 @@
         b.vx = b.vx * 0.96 + fx; b.vy = b.vy * 0.96 + fy;
         const spd = Math.hypot(b.vx, b.vy); if (spd > MAX_SPD) { b.vx = b.vx / spd * MAX_SPD; b.vy = b.vy / spd * MAX_SPD; }
         b.x += b.vx; b.y += b.vy;
+        b.trail.push({ x: b.x, y: b.y });
+        if (b.trail.length > TRAIL_LEN) b.trail.shift();
       }
-      sctx.save();
-      sctx.setTransform(1, 0, 0, 1, 0, 0);
-      sctx.fillStyle = '#fff';
-      for (const b of flockParticles) {
-        const lp = b.life / b.maxLife;
-        sctx.globalAlpha = Math.min(lp * 4, 1) * lp * 0.35;
-        sctx.beginPath();
-        sctx.arc(b.x, b.y, b.size * (0.3 + lp * 0.7), 0, Math.PI * 2);
-        sctx.fill();
-      }
-      sctx.restore();
     }
 
     ctx.save();
@@ -1001,6 +996,32 @@
           ctx.fill();
         }
       }
+      ctx.globalAlpha = 1;
+    }
+
+    // Flock: draw trails on display canvas (tail fades, head bright)
+    if (flockEnabled && flockParticles.length > 0) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.strokeStyle = '#fff';
+      ctx.lineCap = 'round';
+      for (const b of flockParticles) {
+        const t = b.trail;
+        if (t.length < 2) continue;
+        const lp = b.life / b.maxLife;
+        const headAlpha = Math.min(lp * 4, 1) * lp * 0.6;
+        for (let k = 1; k < t.length; k++) {
+          const fade = k / t.length; // 0 at tail, 1 at head
+          ctx.globalAlpha = headAlpha * fade * fade;
+          ctx.lineWidth = b.size * (0.2 + fade * 0.8);
+          ctx.beginPath();
+          ctx.moveTo(t[k - 1].x, t[k - 1].y);
+          ctx.lineTo(t[k].x, t[k].y);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.globalAlpha = 1;
     }
 

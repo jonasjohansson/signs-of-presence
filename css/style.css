@@ -82,7 +82,8 @@ canvas#main {
 
 /* ── Menu toggle ── */
 #menu-toggle {
-  width: 56px;
+  grid-column: span 2;
+  width: 100%;
   height: 32px;
   border-radius: 8px;
   background: rgba(51, 51, 51, 0.8);
@@ -96,7 +97,6 @@ canvas#main {
   align-items: center;
   justify-content: center;
   transition: transform 0.25s ease;
-  flex-shrink: 0;
 }
 
 #sidebar.collapsed #menu-toggle {
@@ -104,19 +104,18 @@ canvas#main {
   pointer-events: auto;
 }
 
-
-/* ── Sidebar ── */
+/* ── Sidebar: 2-column grid ── */
 #sidebar {
   position: fixed;
   right: 0;
   top: 0;
   bottom: 0;
   width: 100px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 6px;
+  align-content: center;
   z-index: 20;
   transition: transform 0.25s ease;
 }
@@ -126,32 +125,28 @@ canvas#main {
   pointer-events: none;
 }
 
-/* ── Button groups ── */
-.btn-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid #444;
-  border-radius: 10px;
-}
-
 /* ── Brush type buttons ── */
 .brush-types {
+  grid-column: span 2;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  gap: 3px;
+  justify-content: center;
+}
+
+.brush-types .bt-btn {
+  flex: 1;
 }
 
 .bt-btn {
-  width: 56px;
-  height: 32px;
-  border-radius: 8px;
+  width: 100%;
+  height: 30px;
+  border-radius: 7px;
   background: #333;
   border: 1px solid #555;
   color: #aaa;
   font-family: -apple-system, sans-serif;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.3px;
   cursor: pointer;
@@ -168,17 +163,43 @@ canvas#main {
   border-color: #fff;
 }
 
+/* ── Sidebar buttons ── */
+#btn-brush-panel {
+  grid-column: span 2;
+  width: 100%;
+  height: 30px;
+  border-radius: 7px;
+  background: #333;
+  border: 1px solid #555;
+  color: #aaa;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#btn-brush-panel:active {
+  background: #555;
+}
+
+/* ── Button groups: transparent in grid ── */
+.btn-group {
+  display: contents;
+}
+
 /* ── Vertical slider ── */
 .vslider {
   position: relative;
-  width: 38px;
-  height: 90px;
+  width: 34px;
+  height: 80px;
   background: #333;
-  border-radius: 19px;
+  border-radius: 17px;
   border: 1px solid #555;
   overflow: hidden;
   cursor: ns-resize;
   touch-action: none;
+  justify-self: center;
 }
 
 .vslider-fill {
@@ -187,7 +208,7 @@ canvas#main {
   left: 0;
   right: 0;
   background: rgba(255, 255, 255, 0.25);
-  border-radius: 19px;
+  border-radius: 17px;
   pointer-events: none;
 }
 
@@ -200,7 +221,7 @@ canvas#main {
   writing-mode: vertical-lr;
   transform: rotate(180deg);
   font-family: -apple-system, sans-serif;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -210,11 +231,7 @@ canvas#main {
 
 /* ── Brush preview ── */
 #brush-preview {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: none;
 }
 
 #brush-dot {
@@ -222,25 +239,10 @@ canvas#main {
   background: #fff;
 }
 
-/* ── Sidebar buttons ── */
-#btn-brush-panel {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: #333;
-  border: 1px solid #555;
-  color: #aaa;
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* ── Pause spans full width ── */
+#btn-pause {
+  grid-column: span 2;
 }
-
-#btn-brush-panel:active {
-  background: #555;
-}
-
 
 /* ── Brush settings panel ── */
 #brush-panel {
@@ -327,65 +329,53 @@ canvas#main {
 /* ── Mobile: smaller UI ── */
 @media (max-width: 768px) {
   #sidebar {
-    width: 72px;
-    gap: 5px;
+    width: 80px;
+    gap: 3px;
+    padding: 4px;
   }
 
   #sidebar.collapsed {
-    transform: translateX(82px);
+    transform: translateX(90px);
   }
 
   #sidebar.collapsed #menu-toggle {
-    transform: translateX(-82px);
+    transform: translateX(-90px);
   }
 
   #menu-toggle {
-    width: 42px;
     height: 26px;
     font-size: 14px;
     border-radius: 6px;
   }
 
   .bt-btn {
-    width: 42px;
     height: 26px;
     font-size: 10px;
     border-radius: 6px;
   }
 
   .brush-types {
-    gap: 4px;
-  }
-
-  .btn-group {
-    gap: 3px;
-    padding: 3px;
-    border-radius: 8px;
+    gap: 2px;
   }
 
   .vslider {
-    width: 30px;
+    width: 28px;
     height: 60px;
-    border-radius: 15px;
+    border-radius: 14px;
   }
 
   .vslider-fill {
-    border-radius: 15px;
+    border-radius: 14px;
   }
 
   .vslider-label {
     font-size: 8px;
   }
 
-  #brush-preview {
-    width: 32px;
-    height: 32px;
-  }
-
   #btn-brush-panel {
-    width: 30px;
-    height: 30px;
+    height: 26px;
     font-size: 14px;
+    border-radius: 6px;
   }
 
   #top-bar {
@@ -394,8 +384,8 @@ canvas#main {
   }
 
   #brush-panel {
-    right: 72px;
-    width: calc((100vw - 72px) * 0.45);
+    right: 80px;
+    width: calc((100vw - 80px) * 0.45);
     padding: 12px;
     font-size: 11px;
     border-radius: 10px;
@@ -421,96 +411,42 @@ canvas#main {
   }
 }
 
-/* ── Short screens: compact 2-column sidebar ── */
+/* ── Short screens: even more compact ── */
 @media (max-height: 500px) {
   #sidebar {
-    width: 94px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 3px;
-    padding: 4px;
-    align-content: center;
-  }
-
-  #sidebar.collapsed {
-    transform: translateX(104px);
-  }
-
-  #sidebar.collapsed #menu-toggle {
-    transform: translateX(-104px);
+    gap: 2px;
+    padding: 3px;
   }
 
   #menu-toggle {
-    grid-column: span 2;
-    width: 100%;
-    height: 24px;
+    height: 22px;
     font-size: 13px;
     border-radius: 5px;
   }
 
-  .brush-types {
-    grid-column: span 2;
-    flex-direction: row;
-    gap: 2px;
-    justify-content: center;
-  }
-
   .bt-btn {
-    width: 100%;
     height: 22px;
     font-size: 9px;
     border-radius: 5px;
   }
 
-  .brush-types .bt-btn {
-    width: auto;
-    flex: 1;
-  }
-
   #btn-brush-panel {
-    grid-column: span 2;
-    width: 100%;
     height: 22px;
-    font-size: 13px;
+    font-size: 12px;
     border-radius: 5px;
   }
 
-  /* Rnd + Def auto-place side by side */
-
-  /* Sliders side by side */
   .vslider {
-    width: 28px;
+    width: 26px;
     height: 44px;
-    border-radius: 14px;
-    justify-self: center;
+    border-radius: 13px;
   }
 
   .vslider-fill {
-    border-radius: 14px;
+    border-radius: 13px;
   }
 
   .vslider-label {
     font-size: 7px;
-  }
-
-  /* Hide preview on short screens */
-  #brush-preview {
-    display: none;
-  }
-
-  #btn-pause {
-    grid-column: span 2;
-  }
-
-  /* Button groups become transparent — children flow into grid */
-  .btn-group {
-    display: contents;
-    border: none;
-    padding: 0;
-  }
-
-  #brush-panel {
-    right: 94px;
-    width: calc((100vw - 94px) * 0.4);
   }
 }

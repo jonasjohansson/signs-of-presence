@@ -1,5 +1,6 @@
 (() => {
-  const BUILD = '2026-02-16 11:10';
+  const now = new Date();
+  const BUILD = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════

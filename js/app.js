@@ -227,8 +227,6 @@
   ];
   const mirrorQueue = [];
   let scrollAccum = 0;
-  let warpEnabled = false;
-  let warpPhase = 0;
   let bleedEnabled = false;
   let bleedParticles = [];
   let bleedFrame = 0;
@@ -286,11 +284,11 @@
         drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, alpha * (0.5 + Math.random() * 0.5), angle, aspect);
       }
     } else {
-      // Normal ink brush — filled path segments
+      // Normal ink brush — filled ribbon
       sctx.save();
       sctx.globalAlpha = alpha;
-      sctx.fillStyle = '#fff';
       sctx.strokeStyle = '#fff';
+      sctx.fillStyle = '#fff';
       sctx.lineCap = 'round';
       sctx.lineJoin = 'round';
 
@@ -299,22 +297,15 @@
         const dx = x - ls.x, dy = y - ls.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 0.1) {
-          const nx = -dy / dist, ny = dx / dist;
+          // Ribbon: variable-width line segment with round caps
+          sctx.lineWidth = (ls.r + r);
           sctx.beginPath();
-          sctx.moveTo(ls.x + nx * ls.r, ls.y + ny * ls.r);
-          sctx.lineTo(x + nx * r, y + ny * r);
-          const a1 = Math.atan2(ny, nx);
-          sctx.arc(x, y, r, a1, a1 + Math.PI);
-          sctx.lineTo(ls.x - nx * ls.r, ls.y - ny * ls.r);
-          sctx.arc(ls.x, ls.y, ls.r, a1 + Math.PI, a1 + Math.PI * 2);
-          sctx.closePath();
-          sctx.fill();
-        } else {
-          sctx.beginPath();
-          sctx.arc(x, y, r, 0, Math.PI * 2);
-          sctx.fill();
+          sctx.moveTo(ls.x, ls.y);
+          sctx.lineTo(x, y);
+          sctx.stroke();
         }
       } else {
+        // First point — round dot
         sctx.beginPath();
         sctx.arc(x, y, r, 0, Math.PI * 2);
         sctx.fill();
@@ -345,8 +336,8 @@
   let mirrorTime = 0;
 
   function mirrorStamp(x, y, pressure, velocity, angle, aspect, taperMul) {
-    // Record path for Flow/Warp effects
-    if ((flowEnabled || warpEnabled) && cur.flowPath) {
+    // Record path for Flow effect
+    if (flowEnabled && cur.flowPath) {
       const pts = cur.flowPath;
       if (pts.length === 0 || Math.hypot(x - pts[pts.length - 1].x, y - pts[pts.length - 1].y) > 4) {
         pts.push({ x, y });
@@ -660,7 +651,7 @@
       }
     }
     // Finalize flow path — spawn runners
-    if ((flowEnabled || warpEnabled) && cur.flowPath && cur.flowPath.length > 5) {
+    if (flowEnabled && cur.flowPath && cur.flowPath.length > 5) {
       const path = { points: cur.flowPath, runners: [] };
       const numRunners = Math.min(4, 1 + Math.floor(cur.flowPath.length / 30));
       for (let i = 0; i < numRunners; i++) {
@@ -916,44 +907,6 @@
       ctx.globalAlpha = 1;
     }
 
-    // Warp: animated sine waves following each stroke's spine
-    if (warpEnabled && flowPaths.length > 0) {
-      warpPhase += 0.06;
-      ctx.strokeStyle = '#fff';
-      ctx.lineCap = 'round';
-
-      for (const fp of flowPaths) {
-        const pts = fp.points;
-        if (pts.length < 4) continue;
-
-        // Draw 4 wave layers at different frequencies/amplitudes
-        for (let w = 0; w < 4; w++) {
-          const freq = 0.12 + w * 0.08;
-          const amp = 3 + w * 3;
-          const phase = warpPhase * (1 + w * 0.25) + w * 1.5;
-          ctx.globalAlpha = 0.18 - w * 0.03;
-          ctx.lineWidth = 1.5 - w * 0.2;
-
-          ctx.beginPath();
-          for (let i = 0; i < pts.length; i++) {
-            const p = pts[i];
-            const next = pts[Math.min(i + 1, pts.length - 1)];
-            const prev = pts[Math.max(i - 1, 0)];
-            const dx = next.x - prev.x, dy = next.y - prev.y;
-            const len = Math.hypot(dx, dy) || 1;
-            const nx = -dy / len, ny = dx / len;
-            const wave = Math.sin(i * freq + phase) * amp;
-            const wx = p.x + nx * wave;
-            const wy = p.y + ny * wave;
-            if (i === 0) ctx.moveTo(wx, wy);
-            else ctx.lineTo(wx, wy);
-          }
-          ctx.stroke();
-        }
-      }
-      ctx.globalAlpha = 1;
-    }
-
     requestAnimationFrame(frame);
   }
 
@@ -1125,12 +1078,6 @@
     btnDrift.classList.toggle('active', brush.mirrorDrift);
   });
 
-  const btnWarp = document.getElementById('btn-warp');
-  btnWarp.addEventListener('click', () => {
-    warpEnabled = !warpEnabled;
-    btnWarp.classList.toggle('active', warpEnabled);
-  });
-
   const btnFlow = document.getElementById('btn-flow');
   btnFlow.addEventListener('click', () => {
     flowEnabled = !flowEnabled;
@@ -1142,6 +1089,25 @@
     bleedEnabled = !bleedEnabled;
     btnBleed.classList.toggle('active', bleedEnabled);
   });
+
+  let paused = false;
+  let savedSpeed = brush.scrollSpeed;
+  const btnPause = document.getElementById('btn-pause');
+  btnPause.addEventListener('click', () => {
+    paused = !paused;
+    if (paused) {
+      savedSpeed = brush.scrollSpeed;
+      brush.scrollSpeed = 0;
+      btnPause.textContent = '\u25B6'; // ▶
+      btnPause.classList.add('active');
+    } else {
+      brush.scrollSpeed = savedSpeed;
+      btnPause.textContent = '\u23F8'; // ⏸
+      btnPause.classList.remove('active');
+    }
+  });
+  // Start playing — show pause icon
+  btnPause.textContent = '\u23F8';
 
   document.getElementById('bp-close').addEventListener('click', () => {
     brushPanel.classList.remove('open');
@@ -1203,8 +1169,9 @@
       case 'm': btnMirror.click(); break;
       case 'd': btnDrift.click(); break;
       case 'f': btnFlow.click(); break;
-      case 'w': btnWarp.click(); break;
       case 'b': btnBleed.click(); break;
+      case 'p': btnPause.click(); break;
+      case ' ': e.preventDefault(); btnPause.click(); break;
       case 'r': btnRandom.click(); break;
       case 'c': clearCanvas(); break;
       case '0': resetBrushDefaults(); break;

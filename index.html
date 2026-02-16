@@ -56,9 +56,9 @@
   </div>
   <div class="btn-group">
     <button class="bt-btn" id="btn-flow">Flow</button>
-    <button class="bt-btn" id="btn-warp">Warp</button>
     <button class="bt-btn" id="btn-bleed">Bleed</button>
   </div>
+  <button class="bt-btn" id="btn-pause">&#9654;</button>
   <button class="bt-btn" id="btn-clear">Clear</button>
   <button class="bt-btn" id="btn-reload" onclick="location.reload(true)">Reload</button>
 </div>
@@ -96,9 +96,22 @@ const cvs = document.getElementById('main');
  'dragstart','copy','dblclick','touchforcechange'].forEach(evt => {
   cvs.addEventListener(evt, e => e.preventDefault(), { passive: false });
 });
-// Zoom blocked by CSS touch-action:none and viewport meta — no touch blocking needed
-// Keep contextmenu blocked globally (doesn't affect clicks)
+// Block ALL zoom: pinch, double-tap, gesture zoom
 document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('gesturechange', e => e.preventDefault());
+document.addEventListener('gestureend', e => e.preventDefault());
+// Block double-tap zoom on the whole page
+let lastTap = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTap < 300) e.preventDefault();
+  lastTap = now;
+}, { passive: false });
+// Block pinch zoom via touch
+document.addEventListener('touchmove', e => {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
 </script>
 </body>
 </html>

@@ -60,7 +60,7 @@
     inertia: 0.2,
     mirror: false,
     mirrorDrift: false,
-    scrollSpeed: 0.5,
+    scrollSpeed: 0.8,
   };
 
   /* ── Multi-pointer stroke tracking ── */
@@ -246,6 +246,15 @@
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     let r = computeRadius(pressure, velocity);
     if (taperMul !== undefined) r *= taperMul;
+
+    // Smooth radius to prevent sudden blob jumps
+    const ls = stampLastStampOverride || cur.lastStamp[activeStampChannel];
+    if (ls.has && ls.r > 0) {
+      const maxGrow = 1.5; // max 50% growth per stamp
+      r = Math.min(r, ls.r * maxGrow);
+      r = ls.r + (r - ls.r) * 0.4;
+    }
+
     const alpha = computeAlpha(pressure);
 
     if (brush.type === 'splatter') {
@@ -998,7 +1007,7 @@
     updatePreview();
   });
 
-  setupSlider('vs-speed', 'vsf-speed', 0, 2, brush.scrollSpeed, v => {
+  setupSlider('vs-speed', 'vsf-speed', 0, 3, brush.scrollSpeed, v => {
     brush.scrollSpeed = v;
   });
 

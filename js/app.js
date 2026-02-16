@@ -1,6 +1,11 @@
 (() => {
-  const BUILD = new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', dateStyle: 'short', timeStyle: 'short' });
-  document.getElementById('s-version').textContent = BUILD;
+  fetch('js/app.js', { method: 'HEAD' }).then(r => {
+    const lm = r.headers.get('last-modified');
+    if (lm) {
+      document.getElementById('s-version').textContent =
+        new Date(lm).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', dateStyle: 'short', timeStyle: 'short' });
+    }
+  });
 
   /* ════════════════════════════════════════════════
    *  Canvas setup

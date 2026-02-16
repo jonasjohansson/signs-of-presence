@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 10:14';
+  const BUILD = '2026-02-16 10:20';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -42,7 +42,7 @@
 
   const brush = {
     type: 'normal',  // 'normal', 'splatter', 'particle'
-    maxRadius: 24,
+    maxRadius: 80,
     opacity: 1.0,
     streamline: 0.60,
     curveBias: 0.8,
@@ -82,6 +82,7 @@
       tremorPhase: 0,
       mirrorOffsets: [],
       sourceTrack: 1,
+      flowPath: [],
       lastStamp: [
         { x: 0, y: 0, r: 0, has: false },
         { x: 0, y: 0, r: 0, has: false },
@@ -111,8 +112,6 @@
     canvas.height = H * dpr;
     score.width = W * dpr;
     score.height = H * dpr;
-    pulseCvs.width = W * dpr;
-    pulseCvs.height = H * dpr;
     bleedSample.width = Math.ceil(W * dpr / BLEED_SCALE);
     bleedSample.height = Math.ceil(H * dpr / BLEED_SCALE);
 
@@ -228,8 +227,6 @@
   ];
   const mirrorQueue = [];
   let scrollAccum = 0;
-  let pulseEnabled = false;
-  let pulsePhase = 0;
   let warpEnabled = false;
   let warpPhase = 0;
   let bleedEnabled = false;
@@ -237,9 +234,9 @@
   let bleedFrame = 0;
   const MAX_BLEED_PARTICLES = 400;
 
-  // Pulse canvas: offscreen for band masking
-  const pulseCvs = document.createElement('canvas');
-  const pctx = pulseCvs.getContext('2d');
+  let flowEnabled = false;
+  const flowPaths = [];
+  const MAX_FLOW_PATHS = 40;
 
   // Bleed: small canvas for edge sampling (GPU→CPU fast at low res)
   const BLEED_SCALE = 8;
@@ -339,6 +336,14 @@
   let mirrorTime = 0;
 
   function mirrorStamp(x, y, pressure, velocity, angle, aspect, taperMul) {
+    // Record path for Flow effect
+    if (flowEnabled && cur.flowPath) {
+      const pts = cur.flowPath;
+      if (pts.length === 0 || Math.hypot(x - pts[pts.length - 1].x, y - pts[pts.length - 1].y) > 4) {
+        pts.push({ x, y });
+      }
+    }
+
     // Primary stroke (channel 0)
     activeStampChannel = 0;
     stamp(x, y, pressure, velocity, angle, aspect, taperMul);
@@ -515,14 +520,14 @@
       }
       return {
         xOff: drift ? 120 + Math.random() * 400 : 0,
-        yScale: 0.4 + Math.random() * 1.2,
-        pScale: 0.3 + Math.random() * 0.7,
-        vScale: 0.5 + Math.random() * 1.0,
-        rScale: 0.3 + Math.random() * 1.7,
+        yScale: 0.7 + Math.random() * 0.6,
+        pScale: 0.5 + Math.random() * 0.5,
+        vScale: 0.6 + Math.random() * 0.8,
+        rScale: 0.5 + Math.random() * 1.0,
         opacScale: 1,
         brushType: types[Math.floor(Math.random() * types.length)],
-        driftFreq: 0.01 + Math.random() * 0.03,
-        driftAmp: 10 + Math.random() * 40,
+        driftFreq: 0.005 + Math.random() * 0.015,
+        driftAmp: 5 + Math.random() * 20,
         driftPhaseX: Math.random() * Math.PI * 2,
         driftPhaseY: Math.random() * Math.PI * 2,
         timeScale: 0.7 + Math.random() * 0.6,
@@ -653,6 +658,21 @@
         mirrorStamp(ix, iy, ip, cur.velocity * d2, cur.angle, cur.aspect, taperOut);
       }
     }
+    // Finalize flow path — spawn runners
+    if (flowEnabled && cur.flowPath && cur.flowPath.length > 5) {
+      const path = { points: cur.flowPath, runners: [] };
+      const numRunners = Math.min(4, 1 + Math.floor(cur.flowPath.length / 30));
+      for (let i = 0; i < numRunners; i++) {
+        path.runners.push({
+          t: i / numRunners,
+          speed: 0.002 + Math.random() * 0.004,
+          size: 1.5 + Math.random() * 2.5,
+        });
+      }
+      flowPaths.push(path);
+      if (flowPaths.length > MAX_FLOW_PATHS) flowPaths.shift();
+    }
+
     cur.active = false;
     strokes.delete(e.pointerId);
     if (e) updateHUD(e);
@@ -688,6 +708,9 @@
       for (const bp of bleedParticles) {
         bp.x -= shift;
         bp.px -= shift;
+      }
+      for (const fp of flowPaths) {
+        for (const pt of fp.points) pt.x -= brush.scrollSpeed;
       }
     }
 
@@ -821,52 +844,83 @@
       ctx.drawImage(score, 0, 0);
     }
 
-    // Pulse: expanding glow band sweeping through shapes
-    if (pulseEnabled) {
-      pulsePhase += 0.006;
-      if (pulsePhase > 1) pulsePhase -= 1;
-
-      const pw = pulseCvs.width, ph = pulseCvs.height;
-      pctx.setTransform(1, 0, 0, 1, 0, 0);
-      pctx.clearRect(0, 0, pw, ph);
-      pctx.drawImage(score, 0, 0);
-      pctx.globalCompositeOperation = 'source-in';
-      const bandW = pw * 0.2;
-      const bandX = (1 - pulsePhase) * (pw + bandW) - bandW;
-      const grad = pctx.createLinearGradient(bandX, 0, bandX + bandW, 0);
-      grad.addColorStop(0, 'rgba(0,0,0,0)');
-      grad.addColorStop(0.35, 'rgba(255,255,255,0.6)');
-      grad.addColorStop(0.5, 'rgba(255,255,255,1)');
-      grad.addColorStop(0.65, 'rgba(255,255,255,0.6)');
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      pctx.fillStyle = grad;
-      pctx.fillRect(0, 0, pw, ph);
-      pctx.globalCompositeOperation = 'source-over';
-
-      // Draw 8 offset copies → shapes briefly expand/glow outward in the band
-      ctx.globalAlpha = 0.3;
-      const ex = 6 * dpr;
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        ctx.drawImage(pulseCvs, Math.cos(a) * ex, Math.sin(a) * ex);
-      }
-      ctx.globalAlpha = 1;
-    }
-
     ctx.restore();
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
     ctx.lineWidth = 0.5;
-    ctx.setLineDash([8, 12]);
     for (const y of lanes) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(W, y);
       ctx.stroke();
     }
-    ctx.setLineDash([]);
+
+    // Flow: animated lights traveling along stroke spines
+    if (flowEnabled && flowPaths.length > 0) {
+      // Cull off-screen paths
+      while (flowPaths.length > 0) {
+        const pts = flowPaths[0].points;
+        if (pts.length > 0 && pts[0].x < -100 &&
+            pts[pts.length - 1].x < -100 &&
+            pts[Math.floor(pts.length / 2)].x < -100) {
+          flowPaths.shift();
+        } else break;
+      }
+
+      ctx.fillStyle = '#fff';
+      for (const fp of flowPaths) {
+        const pts = fp.points;
+        if (pts.length < 2) continue;
+        const totalPts = pts.length - 1;
+
+        for (const runner of fp.runners) {
+          runner.t += runner.speed;
+          if (runner.t > 1) runner.t -= 1;
+
+          // Current position
+          const idx = runner.t * totalPts;
+          const i = Math.floor(idx);
+          const frac = idx - i;
+          const p0 = pts[Math.min(i, pts.length - 1)];
+          const p1 = pts[Math.min(i + 1, pts.length - 1)];
+          const rx = p0.x + (p1.x - p0.x) * frac;
+          const ry = p0.y + (p1.y - p0.y) * frac;
+
+          // Comet trail (6 trailing dots)
+          for (let j = 1; j <= 6; j++) {
+            let tt = runner.t - runner.speed * j * 5;
+            if (tt < 0) tt += 1;
+            const tidx = tt * totalPts;
+            const ti = Math.floor(tidx);
+            const tf = tidx - ti;
+            const tp0 = pts[Math.min(ti, pts.length - 1)];
+            const tp1 = pts[Math.min(ti + 1, pts.length - 1)];
+            const tx = tp0.x + (tp1.x - tp0.x) * tf;
+            const ty = tp0.y + (tp1.y - tp0.y) * tf;
+            const fade = 1 - j / 7;
+            ctx.globalAlpha = fade * 0.4;
+            ctx.beginPath();
+            ctx.arc(tx, ty, runner.size * fade, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Soft glow halo
+          ctx.globalAlpha = 0.15;
+          ctx.beginPath();
+          ctx.arc(rx, ry, runner.size * 5, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Bright core
+          ctx.globalAlpha = 0.9;
+          ctx.beginPath();
+          ctx.arc(rx, ry, runner.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
 
     requestAnimationFrame(frame);
   }
@@ -916,7 +970,7 @@
     brushDot.style.opacity = brush.opacity;
   }
 
-  setupSlider('vs-size', 'vsf-size', 0.5, 48, brush.maxRadius, v => {
+  setupSlider('vs-size', 'vsf-size', 0.5, 80, brush.maxRadius, v => {
     brush.maxRadius = v;
     updatePreview();
   });
@@ -956,9 +1010,9 @@
     document.querySelectorAll('.bt-btn[data-type]').forEach(b =>
       b.classList.toggle('active', b.dataset.type === type));
 
-    const size = 0.5 + Math.random() * 47.5;
+    const size = 0.5 + Math.random() * 79.5;
     brush.maxRadius = size;
-    const sizePct = (size - 0.5) / (48 - 0.5);
+    const sizePct = (size - 0.5) / (80 - 0.5);
     document.getElementById('vsf-size').style.height = (sizePct * 100) + '%';
     updatePreview();
 
@@ -984,8 +1038,8 @@
     document.querySelectorAll('.bt-btn[data-type]').forEach(b =>
       b.classList.toggle('active', b.dataset.type === 'normal'));
 
-    brush.maxRadius = 24;
-    document.getElementById('vsf-size').style.height = ((24 - 0.5) / (48 - 0.5) * 100) + '%';
+    brush.maxRadius = 80;
+    document.getElementById('vsf-size').style.height = '100%';
     updatePreview();
 
     setSlider('bp-stream',  'bpv-stream',  60);
@@ -1021,6 +1075,8 @@
     mirrorQueue.length = 0;
     mirrorLastStamp[0].has = false;
     mirrorLastStamp[1].has = false;
+    flowPaths.length = 0;
+    bleedParticles.length = 0;
   }
 
   document.getElementById('btn-clear').addEventListener('click', clearCanvas);
@@ -1043,10 +1099,10 @@
     btnWarp.classList.toggle('active', warpEnabled);
   });
 
-  const btnPulse = document.getElementById('btn-pulse');
-  btnPulse.addEventListener('click', () => {
-    pulseEnabled = !pulseEnabled;
-    btnPulse.classList.toggle('active', pulseEnabled);
+  const btnFlow = document.getElementById('btn-flow');
+  btnFlow.addEventListener('click', () => {
+    flowEnabled = !flowEnabled;
+    btnFlow.classList.toggle('active', flowEnabled);
   });
 
   const btnBleed = document.getElementById('btn-bleed');
@@ -1114,7 +1170,7 @@
     switch (e.key.toLowerCase()) {
       case 'm': btnMirror.click(); break;
       case 'd': btnDrift.click(); break;
-      case 'p': btnPulse.click(); break;
+      case 'f': btnFlow.click(); break;
       case 'w': btnWarp.click(); break;
       case 'b': btnBleed.click(); break;
       case 'r': btnRandom.click(); break;

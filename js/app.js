@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.16';
+  const VERSION = '0.17';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -241,6 +241,27 @@
   const bleedSample = document.createElement('canvas');
   const bsCtx = bleedSample.getContext('2d', { willReadFrequently: true });
 
+  function flushRibbon(ctx, ls, alpha) {
+    const edges = ls.ribbon;
+    if (!edges || edges.length < 2) return;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    // Forward along left edge
+    ctx.moveTo(edges[0].lx, edges[0].ly);
+    for (let i = 1; i < edges.length; i++) {
+      ctx.lineTo(edges[i].lx, edges[i].ly);
+    }
+    // Backward along right edge
+    for (let i = edges.length - 1; i >= 0; i--) {
+      ctx.lineTo(edges[i].rx, edges[i].ry);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Keep last 2 entries for overlap with next flush
+    ls.ribbon = edges.slice(-2);
+  }
+
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     let r = computeRadius(pressure, velocity);
     if (taperMul !== undefined) r *= taperMul;
@@ -283,8 +304,8 @@
         const pr = 0.5 + Math.random() * r * 0.25;
         drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, alpha * (0.5 + Math.random() * 0.5), angle, aspect);
       }
-    } else {
-      // Normal ink brush — filled polygon ribbon (no circles)
+    } else if (brush.type === 'hatch') {
+      // Hatch brush — visible quad-strip striation effect
       sctx.save();
       sctx.globalAlpha = alpha;
       sctx.fillStyle = '#fff';
@@ -297,29 +318,19 @@
           const dirX = dx / dist, dirY = dy / dist;
           const nx = -dirY, ny = dirX;
 
-          // Averaged normal at junction (last point)
           let jnx, jny;
           if (ls.dirX !== undefined) {
             const ax = ls.dirX + dirX, ay = ls.dirY + dirY;
             const al = Math.hypot(ax, ay);
             if (al > 0.001) { jnx = -ay / al; jny = ax / al; }
             else { jnx = nx; jny = ny; }
-          } else {
-            jnx = nx; jny = ny;
-          }
+          } else { jnx = nx; jny = ny; }
 
-          // Four corners of the ribbon quad
-          const l0x = ls.x + jnx * ls.r, l0y = ls.y + jny * ls.r;
-          const r0x = ls.x - jnx * ls.r, r0y = ls.y - jny * ls.r;
-          const l1x = x + nx * r, l1y = y + ny * r;
-          const r1x = x - nx * r, r1y = y - ny * r;
-
-          // Fill the quad
           sctx.beginPath();
-          sctx.moveTo(l0x, l0y);
-          sctx.lineTo(l1x, l1y);
-          sctx.lineTo(r1x, r1y);
-          sctx.lineTo(r0x, r0y);
+          sctx.moveTo(ls.x + jnx * ls.r, ls.y + jny * ls.r);
+          sctx.lineTo(x + nx * r, y + ny * r);
+          sctx.lineTo(x - nx * r, y - ny * r);
+          sctx.lineTo(ls.x - jnx * ls.r, ls.y - jny * ls.r);
           sctx.closePath();
           sctx.fill();
 
@@ -327,16 +338,72 @@
           ls.dirY = dirY;
         }
       } else {
-        // First point — small filled dot as start cap
         sctx.beginPath();
         sctx.arc(x, y, r, 0, Math.PI * 2);
         sctx.fill();
       }
 
-      ls.x = x;
-      ls.y = y;
-      ls.r = r;
-      ls.has = true;
+      ls.x = x; ls.y = y; ls.r = r; ls.has = true;
+      sctx.restore();
+    } else {
+      // Normal ink brush — buffered filled ribbon
+      sctx.save();
+      sctx.globalAlpha = alpha;
+      sctx.fillStyle = '#fff';
+
+      const ls = stampLastStampOverride || cur.lastStamp[activeStampChannel];
+      if (ls.has) {
+        const dx = x - ls.x, dy = y - ls.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0.5) {
+          const dirX = dx / dist, dirY = dy / dist;
+          const nx = -dirY, ny = dirX;
+
+          if (!ls.ribbon) ls.ribbon = [];
+
+          // First segment: add previous point's edges
+          if (ls.ribbon.length === 0) {
+            ls.ribbon.push({
+              lx: ls.x + nx * ls.r, ly: ls.y + ny * ls.r,
+              rx: ls.x - nx * ls.r, ry: ls.y - ny * ls.r
+            });
+          } else if (ls.dirX !== undefined) {
+            // Update last edge with averaged normal
+            const ax = ls.dirX + dirX, ay = ls.dirY + dirY;
+            const al = Math.hypot(ax, ay);
+            if (al > 0.001) {
+              const jnx = -ay / al, jny = ax / al;
+              const last = ls.ribbon[ls.ribbon.length - 1];
+              last.lx = ls.x + jnx * ls.r; last.ly = ls.y + jny * ls.r;
+              last.rx = ls.x - jnx * ls.r; last.ry = ls.y - jny * ls.r;
+            }
+          }
+
+          // Add current point's edges
+          ls.ribbon.push({
+            lx: x + nx * r, ly: y + ny * r,
+            rx: x - nx * r, ry: y - ny * r
+          });
+
+          ls.dirX = dirX;
+          ls.dirY = dirY;
+
+          // Flush when buffer is large enough
+          if (ls.ribbon.length >= 12) {
+            flushRibbon(sctx, ls, alpha);
+          }
+        }
+      } else {
+        // First point — round start cap
+        sctx.beginPath();
+        sctx.arc(x, y, r, 0, Math.PI * 2);
+        sctx.fill();
+        ls.ribbon = [];
+        ls.dirX = undefined;
+        ls.dirY = undefined;
+      }
+
+      ls.x = x; ls.y = y; ls.r = r; ls.has = true;
 
       if (brush.scatterRadius > 0) {
         const spread = r * brush.scatterRadius * 3;
@@ -685,6 +752,19 @@
       }
       flowPaths.push(path);
       if (flowPaths.length > MAX_FLOW_PATHS) flowPaths.shift();
+    }
+
+    // Flush any remaining ribbon buffer
+    if (brush.type === 'normal') {
+      for (let ch = 0; ch < 3; ch++) {
+        const ls = cur.lastStamp[ch];
+        if (ls.ribbon && ls.ribbon.length >= 2) {
+          sctx.save();
+          sctx.fillStyle = '#fff';
+          flushRibbon(sctx, ls, 1);
+          sctx.restore();
+        }
+      }
     }
 
     cur.active = false;
@@ -1196,8 +1276,9 @@
       case 'c': clearCanvas(); break;
       case '0': resetBrushDefaults(); break;
       case '1': document.querySelector('.bt-btn[data-type="normal"]').click(); break;
-      case '2': document.querySelector('.bt-btn[data-type="splatter"]').click(); break;
-      case '3': document.querySelector('.bt-btn[data-type="particle"]').click(); break;
+      case '2': document.querySelector('.bt-btn[data-type="hatch"]').click(); break;
+      case '3': document.querySelector('.bt-btn[data-type="splatter"]').click(); break;
+      case '4': document.querySelector('.bt-btn[data-type="particle"]').click(); break;
     }
   });
 

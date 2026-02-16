@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T08:50';
+  const BUILD = '2026-02-16T08:52';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -589,7 +589,7 @@
     ctx.restore();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 0.5;
     for (const y of lanes) {
       ctx.beginPath();

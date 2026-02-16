@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.30';
+  const VERSION = '0.31';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -489,7 +489,7 @@
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
 
-    const x = e.clientX, y = e.clientY, p = e.pressure || 0.5;
+    const x = e.clientX, y = e.clientY, p = Math.min(e.pressure || 0.5, 0.5);
 
     if (autoRandom && (performance.now() - lastPenDown) > 1200) randomizeBrush();
     lastPenDown = performance.now();
@@ -550,7 +550,7 @@
     const initR = Math.max(1, brush.maxRadius * 0.05);
     for (const ls of cur.lastStamp) { ls.x = x; ls.y = y; ls.r = initR; ls.has = true; }
 
-    mirrorStamp(x, y, p, 0, cur.angle, cur.aspect, brush.taper > 0 ? 0.1 : 1);
+    mirrorStamp(x, y, p, 0, cur.angle, cur.aspect, 0.15);
     updateHUD(e);
   }
 
@@ -571,7 +571,7 @@
       const s = brush.streamline;
       cur.smoothX += (rx - cur.smoothX) * (1 - s);
       cur.smoothY += (ry - cur.smoothY) * (1 - s);
-      cur.smoothP += (rp - cur.smoothP) * 0.4;
+      cur.smoothP += (rp - cur.smoothP) * 0.2;
 
       computeTilt(ce);
 

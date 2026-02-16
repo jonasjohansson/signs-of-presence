@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.17';
+  const VERSION = '0.18';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -247,16 +247,16 @@
     ctx.globalAlpha = alpha;
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    // Forward along left edge
-    ctx.moveTo(edges[0].lx, edges[0].ly);
-    for (let i = 1; i < edges.length; i++) {
-      ctx.lineTo(edges[i].lx, edges[i].ly);
+    // Draw each segment as a separate quad sub-path in one fill call
+    // Prevents self-intersection at curves AND anti-aliasing gaps
+    for (let i = 0; i < edges.length - 1; i++) {
+      const e0 = edges[i], e1 = edges[i + 1];
+      ctx.moveTo(e0.lx, e0.ly);
+      ctx.lineTo(e1.lx, e1.ly);
+      ctx.lineTo(e1.rx, e1.ry);
+      ctx.lineTo(e0.rx, e0.ry);
+      ctx.closePath();
     }
-    // Backward along right edge
-    for (let i = edges.length - 1; i >= 0; i--) {
-      ctx.lineTo(edges[i].rx, edges[i].ry);
-    }
-    ctx.closePath();
     ctx.fill();
     // Keep last 2 entries for overlap with next flush
     ls.ribbon = edges.slice(-2);

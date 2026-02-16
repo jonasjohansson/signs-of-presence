@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T09:00';
+  const BUILD = '2026-02-16T09:02';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -416,7 +416,7 @@
     // Randomize mirror personalities per stroke
     const types = ['normal', 'splatter', 'particle'];
     stroke.mirrorOffsets = [0, 1].map(() => ({
-      xOff: 20 + Math.random() * 80,
+      xOff: 60 + Math.random() * 200,
       yScale: 0.4 + Math.random() * 1.2,
       pScale: 0.3 + Math.random() * 0.7,
       vScale: 0.5 + Math.random() * 1.0,

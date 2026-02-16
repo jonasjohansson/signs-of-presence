@@ -52,9 +52,9 @@
     tiltInfluence: 0.70,
     scatterRadius: 0,
     scatterDensity: 4,
-    taper: 0.5,         // 0–1: taper strokes at start/end
-    tremor: 0.15,       // 0–1: organic wobble perpendicular to stroke
-    inertia: 0.4,       // 0–1: stroke continues after pen lifts
+    taper: 0.2,         // 0–1: taper strokes at start/end
+    tremor: 0,          // 0–1: organic wobble perpendicular to stroke
+    inertia: 0.2,       // 0–1: stroke continues after pen lifts
     scrollSpeed: 0.5,
   };
 
@@ -182,6 +182,9 @@
     sctx.restore();
   }
 
+  // Track last stamp position for line-based drawing
+  let lastStampX = 0, lastStampY = 0, lastStampR = 0, hasLastStamp = false;
+
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     let r = computeRadius(pressure, velocity);
     if (taperMul !== undefined) r *= taperMul;
@@ -220,8 +223,48 @@
         drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, alpha * (0.5 + Math.random() * 0.5), angle, aspect);
       }
     } else {
-      // Normal ink brush
-      drawDab(x, y, r, alpha, angle, aspect);
+      // Normal ink brush — draw filled path segments for smooth edges
+      sctx.save();
+      sctx.globalAlpha = alpha;
+      sctx.fillStyle = '#fff';
+      sctx.strokeStyle = '#fff';
+      sctx.lineCap = 'round';
+      sctx.lineJoin = 'round';
+
+      if (hasLastStamp) {
+        // Draw a filled shape connecting previous and current circle
+        const dx = x - lastStampX, dy = y - lastStampY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0.1) {
+          const nx = -dy / dist, ny = dx / dist;
+          sctx.beginPath();
+          // Left side of stroke
+          sctx.moveTo(lastStampX + nx * lastStampR, lastStampY + ny * lastStampR);
+          sctx.lineTo(x + nx * r, y + ny * r);
+          // Arc around current point
+          const a1 = Math.atan2(ny, nx);
+          sctx.arc(x, y, r, a1, a1 + Math.PI);
+          // Right side back
+          sctx.lineTo(lastStampX - nx * lastStampR, lastStampY - ny * lastStampR);
+          // Arc around previous point
+          sctx.arc(lastStampX, lastStampY, lastStampR, a1 + Math.PI, a1 + Math.PI * 2);
+          sctx.closePath();
+          sctx.fill();
+        } else {
+          sctx.beginPath();
+          sctx.arc(x, y, r, 0, Math.PI * 2);
+          sctx.fill();
+        }
+      } else {
+        sctx.beginPath();
+        sctx.arc(x, y, r, 0, Math.PI * 2);
+        sctx.fill();
+      }
+
+      lastStampX = x;
+      lastStampY = y;
+      lastStampR = r;
+      hasLastStamp = true;
 
       if (brush.scatterRadius > 0) {
         const spread = r * brush.scatterRadius * 3;
@@ -229,10 +272,14 @@
           const a = Math.random() * Math.PI * 2;
           const d = Math.random() * spread;
           const sr = r * (0.3 + Math.random() * 0.7);
-          const sa = alpha * (0.4 + Math.random() * 0.6);
-          drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, sr, sa, angle, aspect);
+          sctx.globalAlpha = alpha * (0.4 + Math.random() * 0.6);
+          sctx.beginPath();
+          sctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, sr, 0, Math.PI * 2);
+          sctx.fill();
         }
       }
+
+      sctx.restore();
     }
   }
 
@@ -244,7 +291,7 @@
     const avgP = (p0 + p1) / 2;
     const pMapped = Math.pow(Math.max(avgP, 0.001), brush.pressureCurve);
     const avgR = brush.maxRadius * Math.max(brush.minSizePct, 1 - brush.pressureToSize * (1 - pMapped));
-    const spacing = Math.max(0.5, avgR * (0.18 + brush.softness * 0.12));
+    const spacing = Math.max(0.5, avgR * 0.08);
     const n = Math.max(1, Math.ceil(dist / spacing));
 
     for (let i = 0; i <= n; i++) {
@@ -320,6 +367,7 @@
     stroke.history = [{ x, y: cy, p }];
     stroke.totalDist = 0;
     stroke.tremorPhase = Math.random() * Math.PI * 2;
+    hasLastStamp = false;
     computeTilt(e);
 
     stamp(x, cy, p, 0, stroke.angle, stroke.aspect, brush.taper > 0 ? 0.1 : 1);
@@ -384,7 +432,9 @@
         }
         const n = sh.length;
         const p0 = sh[n - 4], p1 = sh[n - 3], p2 = sh[n - 2], p3 = sh[n - 1];
-        const steps = Math.max(6, Math.ceil(dist / 1.5));
+        const avgR = computeRadius((p1.p + p2.p) / 2, stroke.velocity);
+        const stepSize = Math.max(0.5, avgR * 0.08);
+        const steps = Math.max(6, Math.ceil(dist / stepSize));
         for (let i = 1; i <= steps; i++) {
           const t = i / steps;
           const t2 = t * t, t3 = t2 * t;
@@ -586,6 +636,14 @@
 
   document.getElementById('bp-close').addEventListener('click', () => {
     brushPanel.classList.remove('open');
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (brushPanel.classList.contains('open') &&
+        !brushPanel.contains(e.target) &&
+        e.target.id !== 'btn-brush-panel') {
+      brushPanel.classList.remove('open');
+    }
   });
 
   function bindRange(inputId, valId, mapFn) {

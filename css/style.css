@@ -193,13 +193,13 @@ canvas#main {
 /* ── Brush settings panel ── */
 #brush-panel {
   position: fixed;
-  right: 104px;
+  right: 100px;
   top: 50%;
   transform: translateY(-50%) scale(0.95);
   opacity: 0;
   pointer-events: none;
-  width: 240px;
-  background: rgba(30, 30, 30, 0.97);
+  width: calc((100vw - 100px) * 0.25);
+  background: rgba(0, 0, 0, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.15);

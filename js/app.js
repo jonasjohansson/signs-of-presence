@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 10:20';
+  const BUILD = '2026-02-16 10:24';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -239,7 +239,7 @@
   const MAX_FLOW_PATHS = 40;
 
   // Bleed: small canvas for edge sampling (GPU→CPU fast at low res)
-  const BLEED_SCALE = 8;
+  const BLEED_SCALE = 4;
   const bleedSample = document.createElement('canvas');
   const bsCtx = bleedSample.getContext('2d', { willReadFrequently: true });
 
@@ -336,8 +336,8 @@
   let mirrorTime = 0;
 
   function mirrorStamp(x, y, pressure, velocity, angle, aspect, taperMul) {
-    // Record path for Flow effect
-    if (flowEnabled && cur.flowPath) {
+    // Record path for Flow/Warp effects
+    if ((flowEnabled || warpEnabled) && cur.flowPath) {
       const pts = cur.flowPath;
       if (pts.length === 0 || Math.hypot(x - pts[pts.length - 1].x, y - pts[pts.length - 1].y) > 4) {
         pts.push({ x, y });
@@ -456,9 +456,6 @@
     pbar: document.getElementById('s-pbar'),
     tiltX: document.getElementById('s-tiltx'),
     tiltY: document.getElementById('s-tilty'),
-    alt: document.getElementById('s-alt'),
-    azi: document.getElementById('s-azi'),
-    twist: document.getElementById('s-twist'),
     pos: document.getElementById('s-pos'),
   };
 
@@ -472,11 +469,6 @@
     hud.pbar.style.width = (p * 100) + '%';
     hud.tiltX.textContent = (e.tiltX ?? 0) + '\u00B0';
     hud.tiltY.textContent = (e.tiltY ?? 0) + '\u00B0';
-    hud.alt.textContent = e.altitudeAngle != null
-      ? (e.altitudeAngle * 180 / Math.PI).toFixed(1) + '\u00B0' : '--';
-    hud.azi.textContent = e.azimuthAngle != null
-      ? (e.azimuthAngle * 180 / Math.PI).toFixed(1) + '\u00B0' : '--';
-    hud.twist.textContent = (e.twist ?? 0) + '\u00B0';
     hud.pos.textContent = Math.round(e.clientX) + ', ' + Math.round(e.clientY);
   }
 
@@ -659,7 +651,7 @@
       }
     }
     // Finalize flow path — spawn runners
-    if (flowEnabled && cur.flowPath && cur.flowPath.length > 5) {
+    if ((flowEnabled || warpEnabled) && cur.flowPath && cur.flowPath.length > 5) {
       const path = { points: cur.flowPath, runners: [] };
       const numRunners = Math.min(4, 1 + Math.floor(cur.flowPath.length / 30));
       for (let i = 0; i < numRunners; i++) {
@@ -719,14 +711,14 @@
       bleedFrame++;
 
       // Sample edges every 3 frames via downscaled canvas
-      if (bleedFrame % 3 === 0) {
+      if (bleedFrame % 2 === 0) {
         const sw = bleedSample.width, sh = bleedSample.height;
         bsCtx.clearRect(0, 0, sw, sh);
         bsCtx.drawImage(score, 0, 0, sw, sh);
         const img = bsCtx.getImageData(0, 0, sw, sh);
         const px = img.data;
 
-        const attempts = 25;
+        const attempts = 50;
         for (let a = 0; a < attempts; a++) {
           if (bleedParticles.length >= MAX_BLEED_PARTICLES) break;
           const sx = Math.floor(Math.random() * sw);
@@ -751,16 +743,16 @@
           dirX /= dirLen; dirY /= dirLen;
           const fx = sx * BLEED_SCALE;
           const fy = sy * BLEED_SCALE;
-          const speed = 0.2 + Math.random() * 0.6;
-          const life = 40 + Math.random() * 80;
+          const speed = 0.3 + Math.random() * 0.8;
+          const life = 50 + Math.random() * 100;
 
           bleedParticles.push({
             x: fx, y: fy, px: fx, py: fy,
             vx: dirX * speed,
-            vy: dirY * speed + 0.08,
+            vy: dirY * speed + 0.1,
             life, maxLife: life,
-            size: (0.3 + Math.random() * 1.2) * dpr,
-            alpha: 0.012 + Math.random() * 0.02,
+            size: (0.5 + Math.random() * 2.0) * dpr,
+            alpha: 0.04 + Math.random() * 0.06,
             wobbleFreq: 0.05 + Math.random() * 0.15,
             wobbleAmp: 0.4 + Math.random() * 1.2,
             wobblePhase: Math.random() * Math.PI * 2,
@@ -806,7 +798,7 @@
         sctx.stroke();
 
         // Branching: occasionally spawn sub-tendril
-        if (Math.random() < 0.02 && bleedParticles.length < MAX_BLEED_PARTICLES) {
+        if (Math.random() < 0.04 && bleedParticles.length < MAX_BLEED_PARTICLES) {
           const ba = Math.atan2(p.vy, p.vx) + (Math.random() - 0.5) * Math.PI * 0.8;
           const bs = 0.15 + Math.random() * 0.3;
           const bl = Math.floor(p.life * 0.4);
@@ -830,19 +822,7 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (warpEnabled) {
-      // Dual-axis sine-wave distortion — liquid/underwater feel
-      warpPhase += 0.035;
-      const sh = 20;
-      for (let y = 0; y < canvas.height; y += sh) {
-        const offX = Math.sin(y * 0.018 + warpPhase) * 12 * dpr
-                   + Math.sin(y * 0.006 + warpPhase * 1.7) * 6 * dpr;
-        const offY = Math.cos(y * 0.012 + warpPhase * 0.8) * 3 * dpr;
-        ctx.drawImage(score, 0, y, score.width, sh, offX, y + offY, canvas.width, sh);
-      }
-    } else {
-      ctx.drawImage(score, 0, 0);
-    }
+    ctx.drawImage(score, 0, 0);
 
     ctx.restore();
 
@@ -917,6 +897,44 @@
           ctx.beginPath();
           ctx.arc(rx, ry, runner.size, 0, Math.PI * 2);
           ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Warp: animated sine waves following each stroke's spine
+    if (warpEnabled && flowPaths.length > 0) {
+      warpPhase += 0.06;
+      ctx.strokeStyle = '#fff';
+      ctx.lineCap = 'round';
+
+      for (const fp of flowPaths) {
+        const pts = fp.points;
+        if (pts.length < 4) continue;
+
+        // Draw 4 wave layers at different frequencies/amplitudes
+        for (let w = 0; w < 4; w++) {
+          const freq = 0.12 + w * 0.08;
+          const amp = 3 + w * 3;
+          const phase = warpPhase * (1 + w * 0.25) + w * 1.5;
+          ctx.globalAlpha = 0.18 - w * 0.03;
+          ctx.lineWidth = 1.5 - w * 0.2;
+
+          ctx.beginPath();
+          for (let i = 0; i < pts.length; i++) {
+            const p = pts[i];
+            const next = pts[Math.min(i + 1, pts.length - 1)];
+            const prev = pts[Math.max(i - 1, 0)];
+            const dx = next.x - prev.x, dy = next.y - prev.y;
+            const len = Math.hypot(dx, dy) || 1;
+            const nx = -dy / len, ny = dx / len;
+            const wave = Math.sin(i * freq + phase) * amp;
+            const wx = p.x + nx * wave;
+            const wy = p.y + ny * wave;
+            if (i === 0) ctx.moveTo(wx, wy);
+            else ctx.lineTo(wx, wy);
+          }
+          ctx.stroke();
         }
       }
       ctx.globalAlpha = 1;

@@ -85,9 +85,9 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 document.addEventListener('touchstart', e => {
   if (e.touches.length > 1) e.preventDefault();
 }, { passive: false, capture: true });
-document.addEventListener('touchend', e => {
+document.getElementById('main').addEventListener('touchend', e => {
   e.preventDefault();
-}, { passive: false, capture: true });
+}, { passive: false });
 </script>
 </body>
 </html>

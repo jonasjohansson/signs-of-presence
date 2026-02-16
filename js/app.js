@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 09:37';
+  const BUILD = '2026-02-16 09:41';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -59,6 +59,7 @@
     tremor: 0,
     inertia: 0.2,
     mirror: false,
+    mirrorDrift: false,
     scrollSpeed: 0.5,
   };
 
@@ -110,6 +111,8 @@
     canvas.height = H * dpr;
     score.width = W * dpr;
     score.height = H * dpr;
+    bloomCvs.width = W * dpr;
+    bloomCvs.height = H * dpr;
 
     if (tmp.width > 0 && tmp.height > 0)
       sctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, 0, 0, score.width, score.height);
@@ -224,6 +227,14 @@
   const mirrorQueue = [];
   let scrollAccum = 0;
   let vfxEnabled = false;
+  let pulseEnabled = false;
+  let pulsePhase = 0;
+
+  // Bloom canvas: CSS-filtered overlay for Safari/WebKit compatibility
+  const bloomCvs = document.createElement('canvas');
+  bloomCvs.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;mix-blend-mode:screen;opacity:0.5;filter:blur(10px);display:none;';
+  document.body.appendChild(bloomCvs);
+  const bctx = bloomCvs.getContext('2d');
 
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     let r = computeRadius(pressure, velocity);
@@ -343,19 +354,34 @@
         const mx = x + mo.xOff + driftX;
         const my = trackMid + relY * trackHalf * mo.yScale + driftY;
 
-        mirrorQueue.push({
-          executeAt: performance.now() + mo.delay,
-          scrollAt: scrollAccum,
-          x: mx, y: my,
-          pressure: pressure * mo.pScale,
-          velocity: velocity * mo.vScale,
-          angle, aspect, taperMul,
-          brushType: mo.brushType,
-          maxRadius: brush.maxRadius * mo.rScale,
-          opacity: brush.opacity * mo.opacScale,
-          channel: m,
-          newStroke: false,
-        });
+        if (mo.delay > 0) {
+          mirrorQueue.push({
+            executeAt: performance.now() + mo.delay,
+            scrollAt: scrollAccum,
+            x: mx, y: my,
+            pressure: pressure * mo.pScale,
+            velocity: velocity * mo.vScale,
+            angle, aspect, taperMul,
+            brushType: mo.brushType,
+            maxRadius: brush.maxRadius * mo.rScale,
+            opacity: brush.opacity * mo.opacScale,
+            channel: m,
+            newStroke: false,
+          });
+        } else {
+          // Immediate mirror stamp (no delay)
+          const savedType = brush.type;
+          const savedMax = brush.maxRadius;
+          const savedOpac = brush.opacity;
+          brush.type = mo.brushType;
+          brush.maxRadius = savedMax * mo.rScale;
+          brush.opacity = savedOpac * mo.opacScale;
+          activeStampChannel = m + 1;
+          stamp(mx, my, pressure * mo.pScale, velocity * mo.vScale, angle, aspect, taperMul);
+          brush.type = savedType;
+          brush.maxRadius = savedMax;
+          brush.opacity = savedOpac;
+        }
       }
     }
     activeStampChannel = 0;
@@ -468,19 +494,22 @@
 
     // Randomize mirror personalities per stroke
     const types = ['normal', 'splatter', 'particle'];
+    const drift = brush.mirrorDrift;
     cur.mirrorOffsets = [0, 1].map((_, m) => {
-      const delay = 200 + Math.random() * 400; // 200-600ms delay
-      mirrorQueue.push({ executeAt: performance.now() + delay, newStroke: true, channel: m });
+      const delay = drift ? 200 + Math.random() * 400 : 0;
+      if (delay > 0) {
+        mirrorQueue.push({ executeAt: performance.now() + delay, newStroke: true, channel: m });
+      }
       return {
-        xOff: 120 + Math.random() * 400,
+        xOff: drift ? 120 + Math.random() * 400 : 0,
         yScale: 0.4 + Math.random() * 1.2,
         pScale: 0.3 + Math.random() * 0.7,
         vScale: 0.5 + Math.random() * 1.0,
         rScale: 0.3 + Math.random() * 1.7,
         opacScale: 1,
         brushType: types[Math.floor(Math.random() * types.length)],
-        driftFreq: 0.01 + Math.random() * 0.03,
-        driftAmp: 10 + Math.random() * 40,
+        driftFreq: drift ? 0.01 + Math.random() * 0.03 : 0,
+        driftAmp: drift ? 10 + Math.random() * 40 : 0,
         driftPhaseX: Math.random() * Math.PI * 2,
         driftPhaseY: Math.random() * Math.PI * 2,
         timeScale: 0.7 + Math.random() * 0.6,
@@ -650,22 +679,40 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(score, 0, 0);
+    ctx.restore();
 
-    // VFX bloom: additive glow pass
+    // VFX glow: CSS-filtered overlay canvas (Safari compatible)
     if (vfxEnabled) {
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.filter = 'blur(8px)';
-      ctx.globalAlpha = 0.4;
-      ctx.drawImage(score, 0, 0);
-      ctx.filter = 'blur(20px)';
-      ctx.globalAlpha = 0.2;
-      ctx.drawImage(score, 0, 0);
-      ctx.filter = 'none';
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
+      bloomCvs.style.display = 'block';
+      bctx.setTransform(1, 0, 0, 1, 0, 0);
+      bctx.clearRect(0, 0, bloomCvs.width, bloomCvs.height);
+      bctx.drawImage(score, 0, 0);
+    } else {
+      bloomCvs.style.display = 'none';
     }
 
-    ctx.restore();
+    // Pulse: bright band sweeping right-to-left through drawn shapes
+    if (pulseEnabled) {
+      pulsePhase += 0.008;
+      if (pulsePhase > 1) pulsePhase -= 1;
+      const pw = canvas.width;
+      const bandW = pw * 0.15;
+      const bandX = (1 - pulsePhase) * (pw + bandW) - bandW;
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = 'source-atop';
+      const grad = ctx.createLinearGradient(bandX, 0, bandX + bandW, 0);
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(0.4, 'rgba(255,255,255,0.6)');
+      grad.addColorStop(0.5, 'rgba(255,255,255,0.9)');
+      grad.addColorStop(0.6, 'rgba(255,255,255,0.6)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
@@ -805,10 +852,22 @@
     btnMirror.classList.toggle('active', brush.mirror);
   });
 
+  const btnDrift = document.getElementById('btn-drift');
+  btnDrift.addEventListener('click', () => {
+    brush.mirrorDrift = !brush.mirrorDrift;
+    btnDrift.classList.toggle('active', brush.mirrorDrift);
+  });
+
   const btnVfx = document.getElementById('btn-vfx');
   btnVfx.addEventListener('click', () => {
     vfxEnabled = !vfxEnabled;
     btnVfx.classList.toggle('active', vfxEnabled);
+  });
+
+  const btnPulse = document.getElementById('btn-pulse');
+  btnPulse.addEventListener('click', () => {
+    pulseEnabled = !pulseEnabled;
+    btnPulse.classList.toggle('active', pulseEnabled);
   });
 
   document.getElementById('bp-close').addEventListener('click', () => {

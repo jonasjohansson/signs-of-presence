@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.29';
+  const VERSION = '0.30';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -256,9 +256,9 @@
     // Smooth radius to prevent sudden blob jumps
     const ls = stampLastStampOverride || cur.lastStamp[activeStampChannel];
     if (ls.has && ls.r > 0) {
-      const maxGrow = 1.5; // max 50% growth per stamp
+      const maxGrow = 1.25; // max 25% growth per stamp
       r = Math.min(r, ls.r * maxGrow);
-      r = ls.r + (r - ls.r) * 0.4;
+      r = ls.r + (r - ls.r) * 0.25;
     }
 
     const alpha = computeAlpha(pressure);
@@ -545,6 +545,10 @@
       };
     });
     computeTilt(e);
+
+    // Seed lastStamp with a small radius so first stamp gets smoothed
+    const initR = Math.max(1, brush.maxRadius * 0.05);
+    for (const ls of cur.lastStamp) { ls.x = x; ls.y = y; ls.r = initR; ls.has = true; }
 
     mirrorStamp(x, y, p, 0, cur.angle, cur.aspect, brush.taper > 0 ? 0.1 : 1);
     updateHUD(e);

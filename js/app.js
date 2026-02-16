@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.19';
+  const VERSION = '0.20';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -236,7 +236,19 @@
   const flowPaths = [];
   const MAX_FLOW_PATHS = 40;
 
-  // Bleed: small canvas for edge sampling (GPU→CPU fast at low res)
+  let erodeEnabled = false;
+  let erodeParticles = [];
+  const MAX_ERODE = 400;
+
+  let growEnabled = false;
+  let growBranches = [];
+  const MAX_GROW = 300;
+
+  let flockEnabled = false;
+  let flockParticles = [];
+  const MAX_FLOCK = 250;
+
+  // Shared edge sampling canvas (GPU→CPU fast at low res)
   const BLEED_SCALE = 4;
   const bleedSample = document.createElement('canvas');
   const bsCtx = bleedSample.getContext('2d', { willReadFrequently: true });
@@ -736,13 +748,15 @@
       for (const fp of flowPaths) {
         for (const pt of fp.points) pt.x -= cssShift;
       }
+      for (const ep of erodeParticles) { ep.x -= shift; ep.px -= shift; }
+      for (const gb of growBranches) { gb.x -= shift; }
+      for (const fp of flockParticles) { fp.x -= shift; }
     }
 
-    // Bleed: particle-based watercolor diffusion
-    if (bleedEnabled) {
+    // ── Shared edge sampling for all VFX ──
+    const anyVfx = bleedEnabled || erodeEnabled || growEnabled || flockEnabled;
+    if (anyVfx) {
       bleedFrame++;
-
-      // Sample edges every 3 frames via downscaled canvas
       if (bleedFrame % 2 === 0) {
         const sw = bleedSample.width, sh = bleedSample.height;
         bsCtx.clearRect(0, 0, sw, sh);
@@ -750,102 +764,198 @@
         const img = bsCtx.getImageData(0, 0, sw, sh);
         const px = img.data;
 
-        const attempts = 80;
+        const attempts = 70;
         for (let a = 0; a < attempts; a++) {
-          if (bleedParticles.length >= MAX_BLEED_PARTICLES) break;
           const sx = Math.floor(Math.random() * sw);
           const sy = Math.floor(Math.random() * sh);
           const idx = (sy * sw + sx) * 4;
           if (px[idx] < 40) continue;
 
-          // Edge check: bright pixel with at least one dark neighbor
           let isEdge = false;
           let dirX = 0, dirY = 0;
-          for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]]) {
-            const nx = sx + dx, ny = sy + dy;
-            if (nx < 0 || nx >= sw || ny < 0 || ny >= sh) { isEdge = true; continue; }
-            if (px[(ny * sw + nx) * 4] < 30) {
-              isEdge = true;
-              dirX += dx; dirY += dy;
-            }
+          for (const [ddx, ddy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]]) {
+            const enx = sx + ddx, eny = sy + ddy;
+            if (enx < 0 || enx >= sw || eny < 0 || eny >= sh) { isEdge = true; continue; }
+            if (px[(eny * sw + enx) * 4] < 30) { isEdge = true; dirX += ddx; dirY += ddy; }
           }
           if (!isEdge) continue;
 
           const dirLen = Math.hypot(dirX, dirY) || 1;
-          dirX /= dirLen; dirY /= dirLen;
-          const fx = sx * BLEED_SCALE;
-          const fy = sy * BLEED_SCALE;
-          const speed = 0.5 + Math.random() * 1.2;
-          const life = 80 + Math.random() * 160;
+          const ndx = dirX / dirLen, ndy = dirY / dirLen;
+          const ex = sx * BLEED_SCALE, ey = sy * BLEED_SCALE;
 
-          bleedParticles.push({
-            x: fx, y: fy, px: fx, py: fy,
-            vx: dirX * speed,
-            vy: dirY * speed + 0.15,
-            life, maxLife: life,
-            size: (1.0 + Math.random() * 3.5) * dpr,
-            alpha: 0.06 + Math.random() * 0.10,
-            wobbleFreq: 0.05 + Math.random() * 0.15,
-            wobbleAmp: 0.4 + Math.random() * 1.2,
-            wobblePhase: Math.random() * Math.PI * 2,
-          });
+          // Spawn for each active effect
+          if (bleedEnabled && bleedParticles.length < MAX_BLEED_PARTICLES) {
+            const speed = 0.5 + Math.random() * 1.2;
+            const life = 80 + Math.random() * 160;
+            bleedParticles.push({ x: ex, y: ey, px: ex, py: ey,
+              vx: ndx * speed, vy: ndy * speed + 0.15,
+              life, maxLife: life, size: (1.0 + Math.random() * 3.5) * dpr,
+              alpha: 0.06 + Math.random() * 0.10,
+              wobbleFreq: 0.05 + Math.random() * 0.15, wobbleAmp: 0.4 + Math.random() * 1.2,
+              wobblePhase: Math.random() * Math.PI * 2 });
+          }
+          if (erodeEnabled && erodeParticles.length < MAX_ERODE) {
+            const speed = 0.2 + Math.random() * 0.5;
+            const life = 60 + Math.random() * 120;
+            erodeParticles.push({ x: ex, y: ey, px: ex, py: ey,
+              vx: -ndx * speed, vy: -ndy * speed, // inward
+              life, maxLife: life, size: (1.5 + Math.random() * 3.0) * dpr });
+          }
+          if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.3) {
+            const life = 80 + Math.random() * 200;
+            growBranches.push({ x: ex, y: ey,
+              angle: Math.atan2(ndy, ndx), speed: (0.5 + Math.random() * 1.5) * dpr,
+              curvature: (Math.random() - 0.5) * 0.1,
+              life, maxLife: life, size: (0.8 + Math.random() * 2.0) * dpr,
+              branchProb: 0.03 + Math.random() * 0.04 });
+          }
+          if (flockEnabled && flockParticles.length < MAX_FLOCK && Math.random() < 0.4) {
+            const speed = (1 + Math.random() * 1.5) * dpr;
+            const angle = Math.atan2(ndy, ndx) + (Math.random() - 0.5) * 1.0;
+            const life = 200 + Math.random() * 400;
+            flockParticles.push({ x: ex, y: ey,
+              vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+              life, maxLife: life, size: (0.8 + Math.random() * 1.5) * dpr });
+          }
         }
       }
+    }
 
-      // Update and draw particles onto score
+    // ── Bleed: watercolor diffusion ──
+    if (bleedEnabled && bleedParticles.length > 0) {
       sctx.save();
       sctx.setTransform(1, 0, 0, 1, 0, 0);
       sctx.fillStyle = '#fff';
       sctx.strokeStyle = '#fff';
       sctx.lineCap = 'round';
-
       for (let i = bleedParticles.length - 1; i >= 0; i--) {
         const p = bleedParticles[i];
         p.px = p.x; p.py = p.y;
-
-        // Brownian motion + wobble → organic tendril paths
         p.wobblePhase += p.wobbleFreq;
         p.vx += (Math.random() - 0.5) * 0.25 + Math.sin(p.wobblePhase) * p.wobbleAmp * 0.08;
         p.vy += (Math.random() - 0.5) * 0.25 + Math.cos(p.wobblePhase * 1.3) * p.wobbleAmp * 0.06;
-        p.vy += 0.015; // slight gravity
-        p.vx *= 0.97; p.vy *= 0.97; // damping
-        p.x += p.vx; p.y += p.vy;
-        p.life--;
-
-        if (p.life <= 0 || p.x < -50) {
-          bleedParticles.splice(i, 1);
-          continue;
-        }
-
+        p.vy += 0.015; p.vx *= 0.97; p.vy *= 0.97;
+        p.x += p.vx; p.y += p.vy; p.life--;
+        if (p.life <= 0 || p.x < -50) { bleedParticles.splice(i, 1); continue; }
         const lifePct = p.life / p.maxLife;
-        const alpha = p.alpha * lifePct * lifePct;
-        const size = p.size * (0.3 + lifePct * 0.7);
-
-        // Draw tendril line from previous to current position
-        sctx.globalAlpha = alpha;
-        sctx.lineWidth = size;
-        sctx.beginPath();
-        sctx.moveTo(p.px, p.py);
-        sctx.lineTo(p.x, p.y);
-        sctx.stroke();
-
-        // Branching: occasionally spawn sub-tendril
+        sctx.globalAlpha = p.alpha * lifePct * lifePct;
+        sctx.lineWidth = p.size * (0.3 + lifePct * 0.7);
+        sctx.beginPath(); sctx.moveTo(p.px, p.py); sctx.lineTo(p.x, p.y); sctx.stroke();
         if (Math.random() < 0.07 && bleedParticles.length < MAX_BLEED_PARTICLES) {
           const ba = Math.atan2(p.vy, p.vx) + (Math.random() - 0.5) * Math.PI * 0.8;
           const bs = 0.2 + Math.random() * 0.5;
           const bl = Math.floor(p.life * 0.5);
-          bleedParticles.push({
-            x: p.x, y: p.y, px: p.x, py: p.y,
+          bleedParticles.push({ x: p.x, y: p.y, px: p.x, py: p.y,
             vx: Math.cos(ba) * bs, vy: Math.sin(ba) * bs + 0.06,
-            life: bl, maxLife: bl,
-            size: p.size * 0.7, alpha: p.alpha * 0.7,
-            wobbleFreq: 0.06 + Math.random() * 0.12,
-            wobbleAmp: 0.3 + Math.random() * 0.8,
-            wobblePhase: Math.random() * Math.PI * 2,
-          });
+            life: bl, maxLife: bl, size: p.size * 0.7, alpha: p.alpha * 0.7,
+            wobbleFreq: 0.06 + Math.random() * 0.12, wobbleAmp: 0.3 + Math.random() * 0.8,
+            wobblePhase: Math.random() * Math.PI * 2 });
         }
       }
+      sctx.restore();
+    }
 
+    // ── Erode: shapes decay from edges ──
+    if (erodeEnabled && erodeParticles.length > 0) {
+      sctx.save();
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.globalCompositeOperation = 'destination-out';
+      sctx.fillStyle = '#fff';
+      for (let i = erodeParticles.length - 1; i >= 0; i--) {
+        const p = erodeParticles[i];
+        p.vx += (Math.random() - 0.5) * 0.12; p.vy += (Math.random() - 0.5) * 0.12;
+        p.vx *= 0.94; p.vy *= 0.94;
+        p.x += p.vx; p.y += p.vy; p.life--;
+        if (p.life <= 0 || p.x < -20) { erodeParticles.splice(i, 1); continue; }
+        const lifePct = p.life / p.maxLife;
+        const alpha = Math.min(lifePct * 3, 1) * lifePct * 0.35;
+        sctx.globalAlpha = alpha;
+        sctx.beginPath();
+        sctx.arc(p.x, p.y, p.size * (0.5 + lifePct * 0.5), 0, Math.PI * 2);
+        sctx.fill();
+        if (Math.random() < 0.15) {
+          const pa = Math.random() * Math.PI * 2;
+          sctx.globalAlpha = alpha * 0.4;
+          sctx.beginPath();
+          sctx.arc(p.x + Math.cos(pa) * p.size, p.y + Math.sin(pa) * p.size,
+            p.size * 0.3, 0, Math.PI * 2);
+          sctx.fill();
+        }
+      }
+      sctx.restore();
+    }
+
+    // ── Grow: branching vine tendrils ──
+    if (growEnabled && growBranches.length > 0) {
+      sctx.save();
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.strokeStyle = '#fff';
+      sctx.lineCap = 'round';
+      for (let i = growBranches.length - 1; i >= 0; i--) {
+        const g = growBranches[i];
+        const px = g.x, py = g.y;
+        g.angle += g.curvature;
+        g.curvature += (Math.random() - 0.5) * 0.02;
+        g.curvature *= 0.98;
+        g.x += Math.cos(g.angle) * g.speed;
+        g.y += Math.sin(g.angle) * g.speed;
+        g.life--;
+        if (g.life <= 0 || g.x < -20) { growBranches.splice(i, 1); continue; }
+        const lifePct = g.life / g.maxLife;
+        sctx.globalAlpha = Math.min(lifePct * 4, 1) * lifePct * 0.6;
+        sctx.lineWidth = g.size * (0.3 + lifePct * 0.7);
+        sctx.beginPath(); sctx.moveTo(px, py); sctx.lineTo(g.x, g.y); sctx.stroke();
+        if (Math.random() < g.branchProb && growBranches.length < MAX_GROW && lifePct > 0.2) {
+          const side = Math.random() < 0.5 ? 1 : -1;
+          const ba = g.angle + side * (Math.PI / 6 + Math.random() * Math.PI / 6);
+          const cl = Math.floor(g.life * (0.3 + Math.random() * 0.4));
+          growBranches.push({ x: g.x, y: g.y, angle: ba,
+            speed: g.speed * (0.6 + Math.random() * 0.3),
+            curvature: (Math.random() - 0.5) * 0.08,
+            life: cl, maxLife: cl, size: g.size * (0.5 + Math.random() * 0.3),
+            branchProb: g.branchProb * 0.4 });
+          g.branchProb *= 0.5;
+        }
+      }
+      sctx.restore();
+    }
+
+    // ── Flock: boids swarm ──
+    if (flockEnabled && flockParticles.length > 0) {
+      const SEP_R = 18 * dpr, ALI_R = 50 * dpr, COH_R = 80 * dpr;
+      const MAX_SPD = 2.5 * dpr, MAX_F = 0.15 * dpr;
+      for (let i = flockParticles.length - 1; i >= 0; i--) {
+        const b = flockParticles[i]; b.life--;
+        if (b.life <= 0 || b.x < -40) { flockParticles.splice(i, 1); continue; }
+        let sx = 0, sy = 0, sc = 0, ax = 0, ay = 0, ac = 0, cx = 0, cy = 0, cc = 0;
+        for (let j = 0; j < flockParticles.length; j++) {
+          if (i === j) continue;
+          const o = flockParticles[j];
+          const ddx = b.x - o.x, ddy = b.y - o.y, d = Math.hypot(ddx, ddy);
+          if (d < SEP_R && d > 0) { sx += ddx / d / d; sy += ddy / d / d; sc++; }
+          if (d < ALI_R) { ax += o.vx; ay += o.vy; ac++; }
+          if (d < COH_R) { cx += o.x; cy += o.y; cc++; }
+        }
+        let fx = (Math.random() - 0.5) * 0.3, fy = (Math.random() - 0.5) * 0.3;
+        if (sc > 0) { const l = Math.hypot(sx, sy) || 1; fx += sx / l * 1.8; fy += sy / l * 1.8; }
+        if (ac > 0) { ax /= ac; ay /= ac; const l = Math.hypot(ax, ay) || 1; fx += (ax / l * MAX_SPD - b.vx) * 0.05; fy += (ay / l * MAX_SPD - b.vy) * 0.05; }
+        if (cc > 0) { cx = cx / cc - b.x; cy = cy / cc - b.y; const l = Math.hypot(cx, cy) || 1; fx += cx / l * 0.04; fy += cy / l * 0.04; }
+        const fl = Math.hypot(fx, fy); if (fl > MAX_F) { fx = fx / fl * MAX_F; fy = fy / fl * MAX_F; }
+        b.vx += fx; b.vy += fy;
+        const spd = Math.hypot(b.vx, b.vy); if (spd > MAX_SPD) { b.vx = b.vx / spd * MAX_SPD; b.vy = b.vy / spd * MAX_SPD; }
+        b.x += b.vx; b.y += b.vy;
+      }
+      sctx.save();
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.fillStyle = '#fff';
+      for (const b of flockParticles) {
+        const lp = b.life / b.maxLife;
+        sctx.globalAlpha = Math.min(lp * 5, 1) * lp * 0.7;
+        sctx.beginPath();
+        sctx.arc(b.x, b.y, b.size * (0.4 + lp * 0.6), 0, Math.PI * 2);
+        sctx.fill();
+      }
       sctx.restore();
     }
 
@@ -1089,6 +1199,9 @@
     mirrorLastStamp[1].has = false;
     flowPaths.length = 0;
     bleedParticles.length = 0;
+    erodeParticles.length = 0;
+    growBranches.length = 0;
+    flockParticles.length = 0;
   }
 
   document.getElementById('btn-clear').addEventListener('click', clearCanvas);
@@ -1115,6 +1228,24 @@
   btnBleed.addEventListener('click', () => {
     bleedEnabled = !bleedEnabled;
     btnBleed.classList.toggle('active', bleedEnabled);
+  });
+
+  const btnErode = document.getElementById('btn-erode');
+  btnErode.addEventListener('click', () => {
+    erodeEnabled = !erodeEnabled;
+    btnErode.classList.toggle('active', erodeEnabled);
+  });
+
+  const btnGrow = document.getElementById('btn-grow');
+  btnGrow.addEventListener('click', () => {
+    growEnabled = !growEnabled;
+    btnGrow.classList.toggle('active', growEnabled);
+  });
+
+  const btnFlock = document.getElementById('btn-flock');
+  btnFlock.addEventListener('click', () => {
+    flockEnabled = !flockEnabled;
+    btnFlock.classList.toggle('active', flockEnabled);
   });
 
   let paused = false;
@@ -1195,6 +1326,9 @@
       case 'd': btnDrift.click(); break;
       case 'f': btnFlow.click(); break;
       case 'b': btnBleed.click(); break;
+      case 'e': btnErode.click(); break;
+      case 'g': btnGrow.click(); break;
+      case 'l': btnFlock.click(); break;
       case 'p': btnPause.click(); break;
       case ' ': e.preventDefault(); btnPause.click(); break;
       case 'r': btnRandom.click(); break;

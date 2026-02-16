@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.20';
+  const VERSION = '0.21';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -235,10 +235,6 @@
   let flowEnabled = false;
   const flowPaths = [];
   const MAX_FLOW_PATHS = 40;
-
-  let erodeEnabled = false;
-  let erodeParticles = [];
-  const MAX_ERODE = 400;
 
   let growEnabled = false;
   let growBranches = [];
@@ -748,13 +744,12 @@
       for (const fp of flowPaths) {
         for (const pt of fp.points) pt.x -= cssShift;
       }
-      for (const ep of erodeParticles) { ep.x -= shift; ep.px -= shift; }
       for (const gb of growBranches) { gb.x -= shift; }
       for (const fp of flockParticles) { fp.x -= shift; }
     }
 
     // ── Shared edge sampling for all VFX ──
-    const anyVfx = bleedEnabled || erodeEnabled || growEnabled || flockEnabled;
+    const anyVfx = bleedEnabled || growEnabled || flockEnabled;
     if (anyVfx) {
       bleedFrame++;
       if (bleedFrame % 2 === 0) {
@@ -794,13 +789,6 @@
               alpha: 0.06 + Math.random() * 0.10,
               wobbleFreq: 0.05 + Math.random() * 0.15, wobbleAmp: 0.4 + Math.random() * 1.2,
               wobblePhase: Math.random() * Math.PI * 2 });
-          }
-          if (erodeEnabled && erodeParticles.length < MAX_ERODE) {
-            const speed = 0.2 + Math.random() * 0.5;
-            const life = 60 + Math.random() * 120;
-            erodeParticles.push({ x: ex, y: ey, px: ex, py: ey,
-              vx: -ndx * speed, vy: -ndy * speed, // inward
-              life, maxLife: life, size: (1.5 + Math.random() * 3.0) * dpr });
           }
           if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.3) {
             const life = 80 + Math.random() * 200;
@@ -851,36 +839,6 @@
             life: bl, maxLife: bl, size: p.size * 0.7, alpha: p.alpha * 0.7,
             wobbleFreq: 0.06 + Math.random() * 0.12, wobbleAmp: 0.3 + Math.random() * 0.8,
             wobblePhase: Math.random() * Math.PI * 2 });
-        }
-      }
-      sctx.restore();
-    }
-
-    // ── Erode: shapes decay from edges ──
-    if (erodeEnabled && erodeParticles.length > 0) {
-      sctx.save();
-      sctx.setTransform(1, 0, 0, 1, 0, 0);
-      sctx.globalCompositeOperation = 'destination-out';
-      sctx.fillStyle = '#fff';
-      for (let i = erodeParticles.length - 1; i >= 0; i--) {
-        const p = erodeParticles[i];
-        p.vx += (Math.random() - 0.5) * 0.12; p.vy += (Math.random() - 0.5) * 0.12;
-        p.vx *= 0.94; p.vy *= 0.94;
-        p.x += p.vx; p.y += p.vy; p.life--;
-        if (p.life <= 0 || p.x < -20) { erodeParticles.splice(i, 1); continue; }
-        const lifePct = p.life / p.maxLife;
-        const alpha = Math.min(lifePct * 3, 1) * lifePct * 0.35;
-        sctx.globalAlpha = alpha;
-        sctx.beginPath();
-        sctx.arc(p.x, p.y, p.size * (0.5 + lifePct * 0.5), 0, Math.PI * 2);
-        sctx.fill();
-        if (Math.random() < 0.15) {
-          const pa = Math.random() * Math.PI * 2;
-          sctx.globalAlpha = alpha * 0.4;
-          sctx.beginPath();
-          sctx.arc(p.x + Math.cos(pa) * p.size, p.y + Math.sin(pa) * p.size,
-            p.size * 0.3, 0, Math.PI * 2);
-          sctx.fill();
         }
       }
       sctx.restore();
@@ -1199,7 +1157,6 @@
     mirrorLastStamp[1].has = false;
     flowPaths.length = 0;
     bleedParticles.length = 0;
-    erodeParticles.length = 0;
     growBranches.length = 0;
     flockParticles.length = 0;
   }
@@ -1228,12 +1185,6 @@
   btnBleed.addEventListener('click', () => {
     bleedEnabled = !bleedEnabled;
     btnBleed.classList.toggle('active', bleedEnabled);
-  });
-
-  const btnErode = document.getElementById('btn-erode');
-  btnErode.addEventListener('click', () => {
-    erodeEnabled = !erodeEnabled;
-    btnErode.classList.toggle('active', erodeEnabled);
   });
 
   const btnGrow = document.getElementById('btn-grow');
@@ -1326,9 +1277,6 @@
       case 'd': btnDrift.click(); break;
       case 'f': btnFlow.click(); break;
       case 'b': btnBleed.click(); break;
-      case 'e': btnErode.click(); break;
-      case 'g': btnGrow.click(); break;
-      case 'l': btnFlock.click(); break;
       case 'p': btnPause.click(); break;
       case ' ': e.preventDefault(); btnPause.click(); break;
       case 'r': btnRandom.click(); break;

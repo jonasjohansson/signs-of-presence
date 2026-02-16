@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T08:45';
+  const BUILD = '2026-02-16T08:48';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -396,7 +396,8 @@
 
     const x = e.clientX, y = e.clientY, p = e.pressure || 0.5;
 
-    if (autoRandom) randomizeBrush();
+    if (autoRandom && (performance.now() - lastPenDown) > 2000) randomizeBrush();
+    lastPenDown = performance.now();
 
     stroke.active = true;
     const cy = y;
@@ -677,6 +678,7 @@
   }
 
   let autoRandom = false;
+  let lastPenDown = 0;
 
   function randomizeBrush() {
     const types = ['normal', 'splatter', 'particle'];

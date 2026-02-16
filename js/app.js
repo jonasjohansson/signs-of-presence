@@ -1098,16 +1098,14 @@
     if (paused) {
       savedSpeed = brush.scrollSpeed;
       brush.scrollSpeed = 0;
-      btnPause.textContent = '\u25B6'; // ▶
+      btnPause.textContent = 'Play';
       btnPause.classList.add('active');
     } else {
       brush.scrollSpeed = savedSpeed;
-      btnPause.textContent = '\u23F8'; // ⏸
+      btnPause.textContent = 'Pause';
       btnPause.classList.remove('active');
     }
   });
-  // Start playing — show pause icon
-  btnPause.textContent = '\u23F8';
 
   document.getElementById('bp-close').addEventListener('click', () => {
     brushPanel.classList.remove('open');

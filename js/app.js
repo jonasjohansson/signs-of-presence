@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.36';
+  const VERSION = '0.37';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -371,6 +371,9 @@
         const trackMid = (tb.top + tb.bot) / 2;
         const trackHalf = (tb.bot - tb.top) / 2;
 
+        // Sparse: randomly skip stamps for minimal, independent feel
+        if (Math.random() > mo.drawChance) continue;
+
         const t = mirrorTime * mo.wanderSpeed;
         const wx = Math.sin(t * mo.wanderFreq + mo.wanderPhaseX) * mo.wanderAmpX;
         const wy = Math.cos(t * mo.wanderFreq * 1.3 + mo.wanderPhaseY) * mo.wanderAmpY;
@@ -521,19 +524,21 @@
       }
       return {
         xOff,
-        yScale: 0.5 + Math.random() * 0.8,
-        pScale: 0.3 + Math.random() * 0.8,
-        vScale: 0.4 + Math.random() * 1.0,
-        rScale: 0.3 + Math.random() * 1.5,
+        yScale: 0.3 + Math.random() * 1.2,
+        pScale: 0.15 + Math.random() * 0.8,
+        vScale: 0.3 + Math.random() * 1.2,
+        rScale: 0.15 + Math.random() * 1.8,
         opacScale: 1,
         brushType: types[Math.floor(Math.random() * types.length)],
-        // Per-stamp organic path wandering (always active)
-        wanderFreq: 0.004 + Math.random() * 0.02,
-        wanderAmpX: 8 + Math.random() * 30,
-        wanderAmpY: 5 + Math.random() * 20,
+        // Organic path wandering — large deviation for independent feel
+        wanderFreq: 0.003 + Math.random() * 0.015,
+        wanderAmpX: 20 + Math.random() * 60,
+        wanderAmpY: 15 + Math.random() * 50,
         wanderPhaseX: Math.random() * Math.PI * 2,
         wanderPhaseY: Math.random() * Math.PI * 2,
-        wanderSpeed: 0.6 + Math.random() * 0.8,
+        wanderSpeed: 0.4 + Math.random() * 0.8,
+        // Sparse drawing — skip stamps randomly for minimal feel
+        drawChance: 0.25 + Math.random() * 0.4,
         delay,
       };
     });

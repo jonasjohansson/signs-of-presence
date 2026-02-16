@@ -77,7 +77,12 @@
 
 <script src="js/app.js"></script>
 <script>
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(r => r.unregister());
+  });
+  caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+}
 // Block iOS/iPadOS system gestures on canvas only
 const cvs = document.getElementById('main');
 ['gesturestart','gesturechange','gestureend','contextmenu','selectstart',

@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 09:46';
+  const BUILD = '2026-02-16 09:47';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -42,7 +42,7 @@
 
   const brush = {
     type: 'normal',  // 'normal', 'splatter', 'particle'
-    maxRadius: 12,
+    maxRadius: 24,
     opacity: 1.0,
     streamline: 0.60,
     curveBias: 0.8,
@@ -514,8 +514,8 @@
         rScale: 0.3 + Math.random() * 1.7,
         opacScale: 1,
         brushType: types[Math.floor(Math.random() * types.length)],
-        driftFreq: drift ? 0.01 + Math.random() * 0.03 : 0,
-        driftAmp: drift ? 10 + Math.random() * 40 : 0,
+        driftFreq: 0.01 + Math.random() * 0.03,
+        driftAmp: 10 + Math.random() * 40,
         driftPhaseX: Math.random() * Math.PI * 2,
         driftPhaseY: Math.random() * Math.PI * 2,
         timeScale: 0.7 + Math.random() * 0.6,

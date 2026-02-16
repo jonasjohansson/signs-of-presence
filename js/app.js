@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T09:10';
+  const BUILD = new Date().toISOString().slice(0, 16);
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -46,41 +46,48 @@
     opacity: 1.0,
     streamline: 0.60,
     curveBias: 0.8,
-    pressureCurve: 1.50,
+    pressureCurve: 0.70,
     pressureToSize: 1.00,
     pressureToOpac: 0,
     speedThinning: 0.30,
-    minSizePct: 0.01,
+    minSizePct: 0.05,
     softness: 0.15,
     tiltInfluence: 0.70,
     scatterRadius: 0,
     scatterDensity: 4,
-    taper: 0.2,         // 0–1: taper strokes at start/end
-    tremor: 0,          // 0–1: organic wobble perpendicular to stroke
-    inertia: 0.2,       // 0–1: stroke continues after pen lifts
+    taper: 0.2,
+    tremor: 0,
+    inertia: 0.2,
     mirror: false,
     scrollSpeed: 0.5,
   };
 
-  const stroke = {
-    active: false,
-    prevX: 0, prevY: 0, prevP: 0,
-    smoothX: 0, smoothY: 0, smoothP: 0,
-    lastTime: 0,
-    velocity: 0,
-    trackTop: 0, trackBot: 0,
-    // tilt smoothing
-    smTiltCos: 0, smTiltSin: 0, smAspect: 1,
-    angle: 0, aspect: 1,
-    // point history for curve interpolation
-    history: [],
-    // taper tracking
-    totalDist: 0,
-    // tremor phase
-    tremorPhase: 0,
-    // mirror: per-stroke random offsets for top/bottom tracks
-    mirrorOffsets: [],
-  };
+  /* ── Multi-pointer stroke tracking ── */
+  const MAX_POINTERS = 3;
+  const strokes = new Map();
+  let cur = null; // current stroke being processed (set per event)
+
+  function newStroke() {
+    return {
+      active: false,
+      prevX: 0, prevY: 0, prevP: 0,
+      smoothX: 0, smoothY: 0, smoothP: 0,
+      lastTime: 0,
+      velocity: 0,
+      smTiltCos: 0, smTiltSin: 0, smAspect: 1,
+      angle: 0, aspect: 1,
+      history: [],
+      totalDist: 0,
+      tremorPhase: 0,
+      mirrorOffsets: [],
+      sourceTrack: 1,
+      lastStamp: [
+        { x: 0, y: 0, r: 0, has: false },
+        { x: 0, y: 0, r: 0, has: false },
+        { x: 0, y: 0, r: 0, has: false },
+      ],
+    };
+  }
 
   /* ════════════════════════════════════════════════
    *  Layout / resize
@@ -124,12 +131,26 @@
   }
 
   /* ════════════════════════════════════════════════
+   *  Track detection
+   * ════════════════════════════════════════════════ */
+  function detectTrack(y) {
+    if (trackBounds.length < 3) return 1;
+    let best = 1, bestDist = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const mid = (trackBounds[i].top + trackBounds[i].bot) / 2;
+      const d = Math.abs(y - mid);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+  }
+
+  /* ════════════════════════════════════════════════
    *  Tilt
    * ════════════════════════════════════════════════ */
   function computeTilt(e) {
     if (brush.tiltInfluence <= 0) {
-      stroke.angle = 0;
-      stroke.aspect = 1;
+      cur.angle = 0;
+      cur.aspect = 1;
       return;
     }
 
@@ -146,13 +167,13 @@
     }
 
     const rc = Math.cos(rawAngle), rs = Math.sin(rawAngle);
-    stroke.smTiltCos += (rc - stroke.smTiltCos) * 0.3;
-    stroke.smTiltSin += (rs - stroke.smTiltSin) * 0.3;
-    stroke.angle = Math.atan2(stroke.smTiltSin, stroke.smTiltCos);
+    cur.smTiltCos += (rc - cur.smTiltCos) * 0.3;
+    cur.smTiltSin += (rs - cur.smTiltSin) * 0.3;
+    cur.angle = Math.atan2(cur.smTiltSin, cur.smTiltCos);
 
     const rawAspect = 1 - brush.tiltInfluence * tiltAmount * 0.8;
-    stroke.smAspect += (rawAspect - stroke.smAspect) * 0.3;
-    stroke.aspect = Math.max(0.1, stroke.smAspect);
+    cur.smAspect += (rawAspect - cur.smAspect) * 0.3;
+    cur.aspect = Math.max(0.1, cur.smAspect);
   }
 
   /* ════════════════════════════════════════════════
@@ -188,12 +209,6 @@
     sctx.restore();
   }
 
-  // Track last stamp position for line-based drawing (per mirror channel)
-  const lastStamp = [
-    { x: 0, y: 0, r: 0, has: false },
-    { x: 0, y: 0, r: 0, has: false },
-    { x: 0, y: 0, r: 0, has: false },
-  ];
   let activeStampChannel = 0;
 
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
@@ -202,9 +217,7 @@
     const alpha = computeAlpha(pressure);
 
     if (brush.type === 'splatter') {
-      // Central blob
       drawDab(x, y, r * 0.6, alpha, angle, aspect);
-      // Radiating streaks and drops
       const count = 4 + Math.floor(pressure * 10);
       for (let i = 0; i < count; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -217,14 +230,12 @@
           const sy = y + Math.sin(a) * reach * t;
           drawDab(sx, sy, Math.max(0.5, sr), alpha * (1 - t * 0.6), angle, aspect);
         }
-        // Drop at the end
         if (Math.random() < 0.5) {
           const dr = r * (0.15 + Math.random() * 0.3);
           drawDab(x + Math.cos(a) * reach, y + Math.sin(a) * reach, dr, alpha * 0.8, angle, aspect);
         }
       }
     } else if (brush.type === 'particle') {
-      // Spray of small particles
       const count = 3 + Math.floor(pressure * 12);
       const spread = r * 3;
       for (let i = 0; i < count; i++) {
@@ -234,7 +245,7 @@
         drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, alpha * (0.5 + Math.random() * 0.5), angle, aspect);
       }
     } else {
-      // Normal ink brush — draw filled path segments for smooth edges
+      // Normal ink brush — filled path segments
       sctx.save();
       sctx.globalAlpha = alpha;
       sctx.fillStyle = '#fff';
@@ -242,7 +253,7 @@
       sctx.lineCap = 'round';
       sctx.lineJoin = 'round';
 
-      const ls = lastStamp[activeStampChannel];
+      const ls = cur.lastStamp[activeStampChannel];
       if (ls.has) {
         const dx = x - ls.x, dy = y - ls.y;
         const dist = Math.hypot(dx, dy);
@@ -299,21 +310,24 @@
     mirrorTime++;
 
     if (brush.mirror && trackBounds.length === 3) {
-      const centerTb = trackBounds[1];
-      const centerMid = (centerTb.top + centerTb.bot) / 2;
-      const relY = (y - centerMid) / ((centerTb.bot - centerTb.top) / 2);
+      const srcTrack = cur.sourceTrack;
+      const srcTb = trackBounds[srcTrack];
+      const srcMid = (srcTb.top + srcTb.bot) / 2;
+      const relY = (y - srcMid) / ((srcTb.bot - srcTb.top) / 2);
 
       const savedType = brush.type;
       const savedMax = brush.maxRadius;
       const savedOpac = brush.opacity;
 
+      // Mirror to the other two tracks
+      const targets = [0, 1, 2].filter(i => i !== srcTrack);
+
       for (let m = 0; m < 2; m++) {
-        const tb = trackBounds[m === 0 ? 0 : 2];
-        const mo = stroke.mirrorOffsets[m];
+        const tb = trackBounds[targets[m]];
+        const mo = cur.mirrorOffsets[m];
         const trackMid = (tb.top + tb.bot) / 2;
         const trackHalf = (tb.bot - tb.top) / 2;
 
-        // Independent path drift using sine waves at different frequencies
         const t = mirrorTime * mo.timeScale;
         const driftX = Math.sin(t * mo.driftFreq + mo.driftPhaseX) * mo.driftAmp;
         const driftY = Math.cos(t * mo.driftFreq * 1.3 + mo.driftPhaseY) * mo.driftAmp * 0.6;
@@ -322,7 +336,6 @@
         const my = trackMid + relY * trackHalf * mo.yScale + driftY;
         const mp = pressure * mo.pScale;
 
-        // Swap brush personality
         brush.type = mo.brushType;
         brush.maxRadius = savedMax * mo.rScale;
         brush.opacity = savedOpac * mo.opacScale;
@@ -331,7 +344,6 @@
         stamp(mx, my, mp, velocity * mo.vScale, angle, aspect, taperMul);
       }
 
-      // Restore original brush
       brush.type = savedType;
       brush.maxRadius = savedMax;
       brush.opacity = savedOpac;
@@ -387,10 +399,10 @@
   }
 
   /* ════════════════════════════════════════════════
-   *  Pointer events
+   *  Pointer events (multi-pointer: up to 3)
    * ════════════════════════════════════════════════ */
   function onDown(e) {
-    if (e.pointerType === 'touch') return;
+    if (strokes.size >= MAX_POINTERS) return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
 
@@ -399,45 +411,49 @@
     if (autoRandom && (performance.now() - lastPenDown) > 1200) randomizeBrush();
     lastPenDown = performance.now();
 
-    stroke.active = true;
-    const cy = y;
-    stroke.smoothX = stroke.prevX = x;
-    stroke.smoothY = stroke.prevY = cy;
-    stroke.smoothP = stroke.prevP = p;
-    stroke.lastTime = performance.now();
-    stroke.velocity = 0;
-    stroke.smTiltCos = 0;
-    stroke.smTiltSin = 0;
-    stroke.smAspect = 1;
-    stroke.history = [{ x, y: cy, p }];
-    stroke.totalDist = 0;
-    stroke.tremorPhase = Math.random() * Math.PI * 2;
-    lastStamp.forEach(ls => ls.has = false);
+    cur = newStroke();
+    strokes.set(e.pointerId, cur);
+
+    cur.active = true;
+    cur.smoothX = cur.prevX = x;
+    cur.smoothY = cur.prevY = y;
+    cur.smoothP = cur.prevP = p;
+    cur.lastTime = performance.now();
+    cur.velocity = 0;
+    cur.smTiltCos = 0;
+    cur.smTiltSin = 0;
+    cur.smAspect = 1;
+    cur.history = [{ x, y, p }];
+    cur.totalDist = 0;
+    cur.tremorPhase = Math.random() * Math.PI * 2;
+    cur.sourceTrack = detectTrack(y);
+
     // Randomize mirror personalities per stroke
     const types = ['normal', 'splatter', 'particle'];
-    stroke.mirrorOffsets = [0, 1].map(() => ({
+    cur.mirrorOffsets = [0, 1].map(() => ({
       xOff: 60 + Math.random() * 200,
       yScale: 0.4 + Math.random() * 1.2,
       pScale: 0.3 + Math.random() * 0.7,
       vScale: 0.5 + Math.random() * 1.0,
-      rScale: 0.3 + Math.random() * 1.7,       // radius multiplier
+      rScale: 0.3 + Math.random() * 1.7,
       opacScale: 1,
       brushType: types[Math.floor(Math.random() * types.length)],
-      driftFreq: 0.01 + Math.random() * 0.03,   // path wander frequency
-      driftAmp: 10 + Math.random() * 40,         // path wander amplitude
+      driftFreq: 0.01 + Math.random() * 0.03,
+      driftAmp: 10 + Math.random() * 40,
       driftPhaseX: Math.random() * Math.PI * 2,
       driftPhaseY: Math.random() * Math.PI * 2,
-      timeScale: 0.7 + Math.random() * 0.6,     // how fast drift evolves
+      timeScale: 0.7 + Math.random() * 0.6,
     }));
     computeTilt(e);
 
-    mirrorStamp(x, cy, p, 0, stroke.angle, stroke.aspect, brush.taper > 0 ? 0.1 : 1);
+    mirrorStamp(x, y, p, 0, cur.angle, cur.aspect, brush.taper > 0 ? 0.1 : 1);
     updateHUD(e);
   }
 
   function onMove(e) {
     updateHUD(e);
-    if (!stroke.active) return;
+    cur = strokes.get(e.pointerId);
+    if (!cur || !cur.active) return;
     e.preventDefault();
 
     const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
@@ -449,33 +465,31 @@
       const rp = ce.pressure || 0.5;
 
       const s = brush.streamline;
-      stroke.smoothX += (rx - stroke.smoothX) * (1 - s);
-      stroke.smoothY += (ry - stroke.smoothY) * (1 - s);
-      stroke.smoothP += (rp - stroke.smoothP) * 0.4;
+      cur.smoothX += (rx - cur.smoothX) * (1 - s);
+      cur.smoothY += (ry - cur.smoothY) * (1 - s);
+      cur.smoothP += (rp - cur.smoothP) * 0.4;
 
       computeTilt(ce);
 
-      const dt = Math.max(now - stroke.lastTime, 1);
-      const dist = Math.hypot(stroke.smoothX - stroke.prevX, stroke.smoothY - stroke.prevY);
+      const dt = Math.max(now - cur.lastTime, 1);
+      const dist = Math.hypot(cur.smoothX - cur.prevX, cur.smoothY - cur.prevY);
       const vel = dist / dt;
-      stroke.velocity += (vel - stroke.velocity) * 0.3;
-      stroke.lastTime = now;
-      stroke.totalDist += dist;
+      cur.velocity += (vel - cur.velocity) * 0.3;
+      cur.lastTime = now;
+      cur.totalDist += dist;
 
-      // Compute taper multiplier (ease-in at stroke start)
       const taperIn = brush.taper > 0
-        ? Math.min(1, stroke.totalDist / (brush.maxRadius * 3 * brush.taper))
+        ? Math.min(1, cur.totalDist / (brush.maxRadius * 3 * brush.taper))
         : 1;
 
-      // Compute tremor: perpendicular displacement
-      const dirX = stroke.smoothX - stroke.prevX;
-      const dirY = stroke.smoothY - stroke.prevY;
+      const dirX = cur.smoothX - cur.prevX;
+      const dirY = cur.smoothY - cur.prevY;
       const dirLen = Math.hypot(dirX, dirY) || 1;
       const perpX = -dirY / dirLen;
       const perpY = dirX / dirLen;
 
-      const h = stroke.history;
-      h.push({ x: stroke.smoothX, y: stroke.smoothY, p: stroke.smoothP });
+      const h = cur.history;
+      h.push({ x: cur.smoothX, y: cur.smoothY, p: cur.smoothP });
       const maxHist = 8 + Math.floor(brush.curveBias * 12);
       if (h.length > maxHist) h.shift();
 
@@ -492,7 +506,7 @@
         }
         const n = sh.length;
         const p0 = sh[n - 4], p1 = sh[n - 3], p2 = sh[n - 2], p3 = sh[n - 1];
-        const avgR = computeRadius((p1.p + p2.p) / 2, stroke.velocity);
+        const avgR = computeRadius((p1.p + p2.p) / 2, cur.velocity);
         const stepSize = Math.max(0.5, avgR * 0.08);
         const steps = Math.max(6, Math.ceil(dist / stepSize));
         for (let i = 1; i <= steps; i++) {
@@ -505,56 +519,57 @@
             (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
             (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
           const cp = p1.p + (p2.p - p1.p) * t;
-          const lx = stroke.prevX + (stroke.smoothX - stroke.prevX) * (i / steps);
-          const ly = stroke.prevY + (stroke.smoothY - stroke.prevY) * (i / steps);
+          const lx = cur.prevX + (cur.smoothX - cur.prevX) * (i / steps);
+          const ly = cur.prevY + (cur.smoothY - cur.prevY) * (i / steps);
           let fx = lx + (cx - lx) * bias;
           let fy = ly + (cy - ly) * bias;
-          // Apply tremor
           if (brush.tremor > 0) {
-            stroke.tremorPhase += 0.3;
-            const wobble = Math.sin(stroke.tremorPhase) * brush.tremor * brush.maxRadius * 0.3;
+            cur.tremorPhase += 0.3;
+            const wobble = Math.sin(cur.tremorPhase) * brush.tremor * brush.maxRadius * 0.3;
             fx += perpX * wobble;
             fy += perpY * wobble;
           }
-          mirrorStamp(fx, fy, cp, stroke.velocity, stroke.angle, stroke.aspect, taperIn);
+          mirrorStamp(fx, fy, cp, cur.velocity, cur.angle, cur.aspect, taperIn);
         }
       } else {
         strokeSegment(
-          stroke.prevX, stroke.prevY, stroke.prevP,
-          stroke.smoothX, stroke.smoothY, stroke.smoothP,
-          stroke.velocity, stroke.angle, stroke.aspect
+          cur.prevX, cur.prevY, cur.prevP,
+          cur.smoothX, cur.smoothY, cur.smoothP,
+          cur.velocity, cur.angle, cur.aspect
         );
       }
 
-      stroke.prevX = stroke.smoothX;
-      stroke.prevY = stroke.smoothY;
-      stroke.prevP = stroke.smoothP;
+      cur.prevX = cur.smoothX;
+      cur.prevY = cur.smoothY;
+      cur.prevP = cur.smoothP;
     }
   }
 
   function onUp(e) {
-    if (stroke.active && brush.inertia > 0 && stroke.velocity > 0.01) {
-      // Continue stroke with decaying momentum
-      const dx = stroke.smoothX - stroke.prevX;
-      const dy = stroke.smoothY - stroke.prevY;
+    cur = strokes.get(e.pointerId);
+    if (!cur) return;
+
+    if (cur.active && brush.inertia > 0 && cur.velocity > 0.01) {
+      const dx = cur.smoothX - cur.prevX;
+      const dy = cur.smoothY - cur.prevY;
       const len = Math.hypot(dx, dy) || 1;
-      const vx = (dx / len) * stroke.velocity;
-      const vy = (dy / len) * stroke.velocity;
+      const vx = (dx / len) * cur.velocity;
+      const vy = (dy / len) * cur.velocity;
       const steps = Math.floor(brush.inertia * 20);
-      let ix = stroke.smoothX, iy = stroke.smoothY;
-      let ip = stroke.smoothP;
+      let ix = cur.smoothX, iy = cur.smoothY;
+      let ip = cur.smoothP;
       for (let i = 1; i <= steps; i++) {
         const decay = 1 - i / steps;
         const d2 = decay * decay;
         ix += vx * d2 * 8;
         iy += vy * d2 * 8;
         ip *= 0.85;
-        // Taper out at stroke end
         const taperOut = brush.taper > 0 ? decay * decay : 1;
-        mirrorStamp(ix, iy, ip, stroke.velocity * d2, stroke.angle, stroke.aspect, taperOut);
+        mirrorStamp(ix, iy, ip, cur.velocity * d2, cur.angle, cur.aspect, taperOut);
       }
     }
-    stroke.active = false;
+    cur.active = false;
+    strokes.delete(e.pointerId);
     if (e) updateHUD(e);
   }
 
@@ -575,9 +590,11 @@
       sctx.drawImage(score, -shift, 0);
       sctx.globalCompositeOperation = 'source-over';
       sctx.restore();
-      if (stroke.active) {
-        stroke.prevX -= brush.scrollSpeed;
-        stroke.smoothX -= brush.scrollSpeed;
+      for (const s of strokes.values()) {
+        if (s.active) {
+          s.prevX -= brush.scrollSpeed;
+          s.smoothX -= brush.scrollSpeed;
+        }
       }
     }
 
@@ -666,7 +683,6 @@
     brushPanel.classList.toggle('open');
   });
 
-  // Helper to set a slider value and trigger its update
   function setSlider(inputId, valId, value) {
     const input = document.getElementById(inputId);
     const display = document.getElementById(valId);
@@ -695,8 +711,7 @@
 
     setSlider('bp-stream',  'bpv-stream',  Math.floor(20 + Math.random() * 75));
     setSlider('bp-curve',   'bpv-curve',   Math.floor(Math.random() * 100));
-    setSlider('bp-pcurve',  'bpv-pcurve',  Math.floor(50 + Math.random() * 250));
-    setSlider('bp-psize',   'bpv-psize',   Math.floor(30 + Math.random() * 70));
+    // pressureCurve and pressureToSize are not randomized — keep user's tuned values
     setSlider('bp-popac',   'bpv-popac',   0);
     setSlider('bp-vel',     'bpv-vel',     Math.floor(Math.random() * 80));
     setSlider('bp-min',     'bpv-min',     Math.floor(1 + Math.random() * 30));

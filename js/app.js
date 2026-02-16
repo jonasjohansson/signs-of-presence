@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.28';
+  const VERSION = '0.29';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -1308,31 +1308,6 @@
   };
 
   canvas.addEventListener('pointerenter', _flashHUD);
-
-  /* ════════════════════════════════════════════════
-   *  Hamburger menu toggle
-   * ════════════════════════════════════════════════ */
-  const menuToggle = document.getElementById('menu-toggle');
-  const sidebar = document.getElementById('sidebar');
-
-  // Start collapsed on small screens
-  if (window.innerWidth < 768) {
-    sidebar.classList.add('collapsed');
-  }
-
-  menuToggle.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const isCollapsed = sidebar.classList.toggle('collapsed');
-    if (isCollapsed) brushPanel.classList.remove('open');
-  });
-
-  // Keyboard shortcut: 'h' to toggle sidebar
-  document.addEventListener('keydown', e => {
-    if (e.key.toLowerCase() === 'h' && !brushPanel.classList.contains('open')) {
-      menuToggle.click();
-    }
-  });
 
   /* ════════════════════════════════════════════════
    *  Init

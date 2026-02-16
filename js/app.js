@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.23';
+  const VERSION = '0.24';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -291,32 +291,6 @@
         const pr = 0.5 + Math.random() * r * 0.25;
         drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, alpha * (0.5 + Math.random() * 0.5), angle, aspect);
       }
-    } else if (brush.type === 'hatch') {
-      // Hatch brush — striated quad-strip effect
-      sctx.save();
-      sctx.globalAlpha = alpha;
-      sctx.fillStyle = '#fff';
-      const ls = stampLastStampOverride || cur.lastStamp[activeStampChannel];
-      if (ls.has) {
-        const dx = x - ls.x, dy = y - ls.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 0.5) {
-          const nx = -dy / dist, ny = dx / dist;
-          sctx.beginPath();
-          sctx.moveTo(ls.x + nx * ls.r, ls.y + ny * ls.r);
-          sctx.lineTo(x + nx * r, y + ny * r);
-          sctx.lineTo(x - nx * r, y - ny * r);
-          sctx.lineTo(ls.x - nx * ls.r, ls.y - ny * ls.r);
-          sctx.closePath();
-          sctx.fill();
-        }
-      } else {
-        sctx.beginPath();
-        sctx.arc(x, y, r, 0, Math.PI * 2);
-        sctx.fill();
-      }
-      ls.x = x; ls.y = y; ls.r = r; ls.has = true;
-      sctx.restore();
     } else {
       // Normal ink brush — filled capsule stamps
       sctx.save();
@@ -537,27 +511,36 @@
     cur.tremorPhase = Math.random() * Math.PI * 2;
     cur.sourceTrack = detectTrack(y);
 
-    // Randomize mirror personalities per stroke
+    // Randomize mirror personalities per stroke — each track gets distinct character
     const types = ['normal', 'splatter', 'particle'];
     const drift = brush.mirrorDrift;
+    const personalities = [
+      // Mirror 0: tighter, faster, closer echo
+      { xRange: [60, 200], yRange: [0.8, 0.4], pRange: [0.6, 0.4], rRange: [0.6, 0.8],
+        freqRange: [0.01, 0.02], ampRange: [3, 12], tsRange: [0.8, 0.5], delayRange: [100, 250] },
+      // Mirror 1: wider, slower, more drifty
+      { xRange: [250, 500], yRange: [0.5, 0.8], pRange: [0.3, 0.5], rRange: [0.4, 1.2],
+        freqRange: [0.003, 0.008], ampRange: [15, 40], tsRange: [0.4, 0.6], delayRange: [350, 600] },
+    ];
     cur.mirrorOffsets = [0, 1].map((_, m) => {
-      const delay = drift ? 200 + Math.random() * 400 : 0;
+      const p = personalities[m];
+      const delay = drift ? p.delayRange[0] + Math.random() * (p.delayRange[1] - p.delayRange[0]) : 0;
       if (delay > 0) {
         mirrorQueue.push({ executeAt: performance.now() + delay, newStroke: true, channel: m });
       }
       return {
-        xOff: drift ? 120 + Math.random() * 400 : 0,
-        yScale: 0.7 + Math.random() * 0.6,
-        pScale: 0.5 + Math.random() * 0.5,
+        xOff: drift ? p.xRange[0] + Math.random() * (p.xRange[1] - p.xRange[0]) : 0,
+        yScale: p.yRange[0] + Math.random() * p.yRange[1],
+        pScale: p.pRange[0] + Math.random() * p.pRange[1],
         vScale: 0.6 + Math.random() * 0.8,
-        rScale: 0.5 + Math.random() * 1.0,
+        rScale: p.rRange[0] + Math.random() * p.rRange[1],
         opacScale: 1,
         brushType: types[Math.floor(Math.random() * types.length)],
-        driftFreq: 0.005 + Math.random() * 0.015,
-        driftAmp: 5 + Math.random() * 20,
+        driftFreq: p.freqRange[0] + Math.random() * (p.freqRange[1] - p.freqRange[0]),
+        driftAmp: p.ampRange[0] + Math.random() * (p.ampRange[1] - p.ampRange[0]),
         driftPhaseX: Math.random() * Math.PI * 2,
         driftPhaseY: Math.random() * Math.PI * 2,
-        timeScale: 0.7 + Math.random() * 0.6,
+        timeScale: p.tsRange[0] + Math.random() * p.tsRange[1],
         delay,
       };
     });
@@ -801,13 +784,13 @@
               life, maxLife: life, size: (0.8 + Math.random() * 2.0) * dpr,
               branchProb: 0.03 + Math.random() * 0.04 });
           }
-          if (flockEnabled && flockParticles.length < MAX_FLOCK && Math.random() < 0.35) {
-            const speed = (0.6 + Math.random() * 1.0) * dpr;
+          if (flockEnabled && flockParticles.length < MAX_FLOCK && Math.random() < 0.4) {
+            const speed = (1 + Math.random() * 1.5) * dpr;
             const angle = Math.atan2(ndy, ndx) + (Math.random() - 0.5) * 1.0;
-            const life = 80 + Math.random() * 160;
+            const life = 200 + Math.random() * 400;
             flockParticles.push({ x: ex, y: ey,
               vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-              wander: angle, life, maxLife: life, size: (0.5 + Math.random() * 1.0) * dpr,
+              wander: angle, life, maxLife: life, size: (0.8 + Math.random() * 1.5) * dpr,
               trail: [{ x: ex, y: ey }] });
           }
         }
@@ -885,8 +868,8 @@
 
     // ── Flock: boids simulation (update only, drawing is on display canvas) ──
     if (flockEnabled && flockParticles.length > 0) {
-      const SEP_R = 14 * dpr, ALI_R = 40 * dpr, COH_R = 70 * dpr;
-      const MAX_SPD = 1.6 * dpr, MAX_F = 0.08 * dpr;
+      const SEP_R = 18 * dpr, ALI_R = 50 * dpr, COH_R = 80 * dpr;
+      const MAX_SPD = 2.5 * dpr, MAX_F = 0.15 * dpr;
       const TRAIL_LEN = 20;
       for (let i = flockParticles.length - 1; i >= 0; i--) {
         const b = flockParticles[i]; b.life--;
@@ -900,13 +883,13 @@
           if (d < ALI_R) { ax += o.vx; ay += o.vy; ac++; }
           if (d < COH_R) { cx += o.x; cy += o.y; cc++; }
         }
-        b.wander += (Math.random() - 0.5) * 0.3;
-        let fx = Math.cos(b.wander) * 0.06, fy = Math.sin(b.wander) * 0.06;
-        if (sc > 0) { const l = Math.hypot(sx, sy) || 1; fx += sx / l * 1.0; fy += sy / l * 1.0; }
-        if (ac > 0) { ax /= ac; ay /= ac; const l = Math.hypot(ax, ay) || 1; fx += (ax / l * MAX_SPD - b.vx) * 0.03; fy += (ay / l * MAX_SPD - b.vy) * 0.03; }
-        if (cc > 0) { cx = cx / cc - b.x; cy = cy / cc - b.y; const l = Math.hypot(cx, cy) || 1; fx += cx / l * 0.025; fy += cy / l * 0.025; }
+        b.wander += (Math.random() - 0.5) * 0.25;
+        let fx = Math.cos(b.wander) * 0.05 + (Math.random() - 0.5) * 0.3, fy = Math.sin(b.wander) * 0.05 + (Math.random() - 0.5) * 0.3;
+        if (sc > 0) { const l = Math.hypot(sx, sy) || 1; fx += sx / l * 1.8; fy += sy / l * 1.8; }
+        if (ac > 0) { ax /= ac; ay /= ac; const l = Math.hypot(ax, ay) || 1; fx += (ax / l * MAX_SPD - b.vx) * 0.05; fy += (ay / l * MAX_SPD - b.vy) * 0.05; }
+        if (cc > 0) { cx = cx / cc - b.x; cy = cy / cc - b.y; const l = Math.hypot(cx, cy) || 1; fx += cx / l * 0.04; fy += cy / l * 0.04; }
         const fl = Math.hypot(fx, fy); if (fl > MAX_F) { fx = fx / fl * MAX_F; fy = fy / fl * MAX_F; }
-        b.vx = b.vx * 0.96 + fx; b.vy = b.vy * 0.96 + fy;
+        b.vx += fx; b.vy += fy;
         const spd = Math.hypot(b.vx, b.vy); if (spd > MAX_SPD) { b.vx = b.vx / spd * MAX_SPD; b.vy = b.vy / spd * MAX_SPD; }
         b.x += b.vx; b.y += b.vy;
         b.trail.push({ x: b.x, y: b.y });
@@ -1009,7 +992,7 @@
         const t = b.trail;
         if (t.length < 2) continue;
         const lp = b.life / b.maxLife;
-        const headAlpha = Math.min(lp * 4, 1) * lp * 0.6;
+        const headAlpha = Math.min(lp * 5, 1) * lp * 0.8;
         for (let k = 1; k < t.length; k++) {
           const fade = k / t.length; // 0 at tail, 1 at head
           ctx.globalAlpha = headAlpha * fade * fade;
@@ -1306,9 +1289,8 @@
       case 'c': clearCanvas(); break;
       case '0': resetBrushDefaults(); break;
       case '1': document.querySelector('.bt-btn[data-type="normal"]').click(); break;
-      case '2': document.querySelector('.bt-btn[data-type="hatch"]').click(); break;
-      case '3': document.querySelector('.bt-btn[data-type="splatter"]').click(); break;
-      case '4': document.querySelector('.bt-btn[data-type="particle"]').click(); break;
+      case '2': document.querySelector('.bt-btn[data-type="splatter"]').click(); break;
+      case '3': document.querySelector('.bt-btn[data-type="particle"]').click(); break;
     }
   });
 

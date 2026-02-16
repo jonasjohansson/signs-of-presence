@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16T08:52';
+  const BUILD = '2026-02-16T08:55';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -396,7 +396,7 @@
 
     const x = e.clientX, y = e.clientY, p = e.pressure || 0.5;
 
-    if (autoRandom && (performance.now() - lastPenDown) > 2000) randomizeBrush();
+    if (autoRandom && (performance.now() - lastPenDown) > 1200) randomizeBrush();
     lastPenDown = performance.now();
 
     stroke.active = true;

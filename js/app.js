@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.24';
+  const VERSION = '0.25';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════

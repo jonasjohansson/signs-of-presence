@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.18';
+  const VERSION = '0.19';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -241,27 +241,6 @@
   const bleedSample = document.createElement('canvas');
   const bsCtx = bleedSample.getContext('2d', { willReadFrequently: true });
 
-  function flushRibbon(ctx, ls, alpha) {
-    const edges = ls.ribbon;
-    if (!edges || edges.length < 2) return;
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    // Draw each segment as a separate quad sub-path in one fill call
-    // Prevents self-intersection at curves AND anti-aliasing gaps
-    for (let i = 0; i < edges.length - 1; i++) {
-      const e0 = edges[i], e1 = edges[i + 1];
-      ctx.moveTo(e0.lx, e0.ly);
-      ctx.lineTo(e1.lx, e1.ly);
-      ctx.lineTo(e1.rx, e1.ry);
-      ctx.lineTo(e0.rx, e0.ry);
-      ctx.closePath();
-    }
-    ctx.fill();
-    // Keep last 2 entries for overlap with next flush
-    ls.ribbon = edges.slice(-2);
-  }
-
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     let r = computeRadius(pressure, velocity);
     if (taperMul !== undefined) r *= taperMul;
@@ -305,48 +284,33 @@
         drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, alpha * (0.5 + Math.random() * 0.5), angle, aspect);
       }
     } else if (brush.type === 'hatch') {
-      // Hatch brush — visible quad-strip striation effect
+      // Hatch brush — striated quad-strip effect
       sctx.save();
       sctx.globalAlpha = alpha;
       sctx.fillStyle = '#fff';
-
       const ls = stampLastStampOverride || cur.lastStamp[activeStampChannel];
       if (ls.has) {
         const dx = x - ls.x, dy = y - ls.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 0.5) {
-          const dirX = dx / dist, dirY = dy / dist;
-          const nx = -dirY, ny = dirX;
-
-          let jnx, jny;
-          if (ls.dirX !== undefined) {
-            const ax = ls.dirX + dirX, ay = ls.dirY + dirY;
-            const al = Math.hypot(ax, ay);
-            if (al > 0.001) { jnx = -ay / al; jny = ax / al; }
-            else { jnx = nx; jny = ny; }
-          } else { jnx = nx; jny = ny; }
-
+          const nx = -dy / dist, ny = dx / dist;
           sctx.beginPath();
-          sctx.moveTo(ls.x + jnx * ls.r, ls.y + jny * ls.r);
+          sctx.moveTo(ls.x + nx * ls.r, ls.y + ny * ls.r);
           sctx.lineTo(x + nx * r, y + ny * r);
           sctx.lineTo(x - nx * r, y - ny * r);
-          sctx.lineTo(ls.x - jnx * ls.r, ls.y - jny * ls.r);
+          sctx.lineTo(ls.x - nx * ls.r, ls.y - ny * ls.r);
           sctx.closePath();
           sctx.fill();
-
-          ls.dirX = dirX;
-          ls.dirY = dirY;
         }
       } else {
         sctx.beginPath();
         sctx.arc(x, y, r, 0, Math.PI * 2);
         sctx.fill();
       }
-
       ls.x = x; ls.y = y; ls.r = r; ls.has = true;
       sctx.restore();
     } else {
-      // Normal ink brush — buffered filled ribbon
+      // Normal ink brush — filled capsule stamps
       sctx.save();
       sctx.globalAlpha = alpha;
       sctx.fillStyle = '#fff';
@@ -355,52 +319,26 @@
       if (ls.has) {
         const dx = x - ls.x, dy = y - ls.y;
         const dist = Math.hypot(dx, dy);
-        if (dist > 0.5) {
-          const dirX = dx / dist, dirY = dy / dist;
-          const nx = -dirY, ny = dirX;
-
-          if (!ls.ribbon) ls.ribbon = [];
-
-          // First segment: add previous point's edges
-          if (ls.ribbon.length === 0) {
-            ls.ribbon.push({
-              lx: ls.x + nx * ls.r, ly: ls.y + ny * ls.r,
-              rx: ls.x - nx * ls.r, ry: ls.y - ny * ls.r
-            });
-          } else if (ls.dirX !== undefined) {
-            // Update last edge with averaged normal
-            const ax = ls.dirX + dirX, ay = ls.dirY + dirY;
-            const al = Math.hypot(ax, ay);
-            if (al > 0.001) {
-              const jnx = -ay / al, jny = ax / al;
-              const last = ls.ribbon[ls.ribbon.length - 1];
-              last.lx = ls.x + jnx * ls.r; last.ly = ls.y + jny * ls.r;
-              last.rx = ls.x - jnx * ls.r; last.ry = ls.y - jny * ls.r;
-            }
-          }
-
-          // Add current point's edges
-          ls.ribbon.push({
-            lx: x + nx * r, ly: y + ny * r,
-            rx: x - nx * r, ry: y - ny * r
-          });
-
-          ls.dirX = dirX;
-          ls.dirY = dirY;
-
-          // Flush when buffer is large enough
-          if (ls.ribbon.length >= 12) {
-            flushRibbon(sctx, ls, alpha);
-          }
+        if (dist > 0.1) {
+          const nx = -dy / dist, ny = dx / dist;
+          sctx.beginPath();
+          sctx.moveTo(ls.x + nx * ls.r, ls.y + ny * ls.r);
+          sctx.lineTo(x + nx * r, y + ny * r);
+          const a1 = Math.atan2(ny, nx);
+          sctx.arc(x, y, r, a1, a1 + Math.PI);
+          sctx.lineTo(ls.x - nx * ls.r, ls.y - ny * ls.r);
+          sctx.arc(ls.x, ls.y, ls.r, a1 + Math.PI, a1 + Math.PI * 2);
+          sctx.closePath();
+          sctx.fill();
+        } else {
+          sctx.beginPath();
+          sctx.arc(x, y, r, 0, Math.PI * 2);
+          sctx.fill();
         }
       } else {
-        // First point — round start cap
         sctx.beginPath();
         sctx.arc(x, y, r, 0, Math.PI * 2);
         sctx.fill();
-        ls.ribbon = [];
-        ls.dirX = undefined;
-        ls.dirY = undefined;
       }
 
       ls.x = x; ls.y = y; ls.r = r; ls.has = true;
@@ -752,19 +690,6 @@
       }
       flowPaths.push(path);
       if (flowPaths.length > MAX_FLOW_PATHS) flowPaths.shift();
-    }
-
-    // Flush any remaining ribbon buffer
-    if (brush.type === 'normal') {
-      for (let ch = 0; ch < 3; ch++) {
-        const ls = cur.lastStamp[ch];
-        if (ls.ribbon && ls.ribbon.length >= 2) {
-          sctx.save();
-          sctx.fillStyle = '#fff';
-          flushRibbon(sctx, ls, 1);
-          sctx.restore();
-        }
-      }
     }
 
     cur.active = false;

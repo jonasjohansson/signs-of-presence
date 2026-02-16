@@ -1,4 +1,7 @@
 (() => {
+  const BUILD = '2026-02-16T08:25';
+  document.getElementById('s-version').textContent = BUILD;
+
   /* ════════════════════════════════════════════════
    *  Canvas setup
    * ════════════════════════════════════════════════ */
@@ -55,6 +58,7 @@
     taper: 0.2,         // 0–1: taper strokes at start/end
     tremor: 0,          // 0–1: organic wobble perpendicular to stroke
     inertia: 0.2,       // 0–1: stroke continues after pen lifts
+    mirror: false,
     scrollSpeed: 0.5,
   };
 
@@ -74,6 +78,8 @@
     totalDist: 0,
     // tremor phase
     tremorPhase: 0,
+    // mirror: per-stroke random offsets for top/bottom tracks
+    mirrorOffsets: [],
   };
 
   /* ════════════════════════════════════════════════
@@ -182,8 +188,13 @@
     sctx.restore();
   }
 
-  // Track last stamp position for line-based drawing
-  let lastStampX = 0, lastStampY = 0, lastStampR = 0, hasLastStamp = false;
+  // Track last stamp position for line-based drawing (per mirror channel)
+  const lastStamp = [
+    { x: 0, y: 0, r: 0, has: false },
+    { x: 0, y: 0, r: 0, has: false },
+    { x: 0, y: 0, r: 0, has: false },
+  ];
+  let activeStampChannel = 0;
 
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     let r = computeRadius(pressure, velocity);
@@ -231,23 +242,19 @@
       sctx.lineCap = 'round';
       sctx.lineJoin = 'round';
 
-      if (hasLastStamp) {
-        // Draw a filled shape connecting previous and current circle
-        const dx = x - lastStampX, dy = y - lastStampY;
+      const ls = lastStamp[activeStampChannel];
+      if (ls.has) {
+        const dx = x - ls.x, dy = y - ls.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 0.1) {
           const nx = -dy / dist, ny = dx / dist;
           sctx.beginPath();
-          // Left side of stroke
-          sctx.moveTo(lastStampX + nx * lastStampR, lastStampY + ny * lastStampR);
+          sctx.moveTo(ls.x + nx * ls.r, ls.y + ny * ls.r);
           sctx.lineTo(x + nx * r, y + ny * r);
-          // Arc around current point
           const a1 = Math.atan2(ny, nx);
           sctx.arc(x, y, r, a1, a1 + Math.PI);
-          // Right side back
-          sctx.lineTo(lastStampX - nx * lastStampR, lastStampY - ny * lastStampR);
-          // Arc around previous point
-          sctx.arc(lastStampX, lastStampY, lastStampR, a1 + Math.PI, a1 + Math.PI * 2);
+          sctx.lineTo(ls.x - nx * ls.r, ls.y - ny * ls.r);
+          sctx.arc(ls.x, ls.y, ls.r, a1 + Math.PI, a1 + Math.PI * 2);
           sctx.closePath();
           sctx.fill();
         } else {
@@ -261,10 +268,10 @@
         sctx.fill();
       }
 
-      lastStampX = x;
-      lastStampY = y;
-      lastStampR = r;
-      hasLastStamp = true;
+      ls.x = x;
+      ls.y = y;
+      ls.r = r;
+      ls.has = true;
 
       if (brush.scatterRadius > 0) {
         const spread = r * brush.scatterRadius * 3;
@@ -283,10 +290,59 @@
     }
   }
 
+  let mirrorTime = 0;
+
+  function mirrorStamp(x, y, pressure, velocity, angle, aspect, taperMul) {
+    // Primary stroke (channel 0)
+    activeStampChannel = 0;
+    stamp(x, y, pressure, velocity, angle, aspect, taperMul);
+    mirrorTime++;
+
+    if (brush.mirror && trackBounds.length === 3) {
+      const centerTb = trackBounds[1];
+      const centerMid = (centerTb.top + centerTb.bot) / 2;
+      const relY = (y - centerMid) / ((centerTb.bot - centerTb.top) / 2);
+
+      const savedType = brush.type;
+      const savedMax = brush.maxRadius;
+      const savedOpac = brush.opacity;
+
+      for (let m = 0; m < 2; m++) {
+        const tb = trackBounds[m === 0 ? 0 : 2];
+        const mo = stroke.mirrorOffsets[m];
+        const trackMid = (tb.top + tb.bot) / 2;
+        const trackHalf = (tb.bot - tb.top) / 2;
+
+        // Independent path drift using sine waves at different frequencies
+        const t = mirrorTime * mo.timeScale;
+        const driftX = Math.sin(t * mo.driftFreq + mo.driftPhaseX) * mo.driftAmp;
+        const driftY = Math.cos(t * mo.driftFreq * 1.3 + mo.driftPhaseY) * mo.driftAmp * 0.6;
+
+        const mx = x + mo.xOff + driftX;
+        const my = trackMid + relY * trackHalf * mo.yScale + driftY;
+        const mp = pressure * mo.pScale;
+
+        // Swap brush personality
+        brush.type = mo.brushType;
+        brush.maxRadius = savedMax * mo.rScale;
+        brush.opacity = savedOpac * mo.opacScale;
+
+        activeStampChannel = m + 1;
+        stamp(mx, my, mp, velocity * mo.vScale, angle, aspect, taperMul);
+      }
+
+      // Restore original brush
+      brush.type = savedType;
+      brush.maxRadius = savedMax;
+      brush.opacity = savedOpac;
+    }
+    activeStampChannel = 0;
+  }
+
   function strokeSegment(x0, y0, p0, x1, y1, p1, vel, angle, aspect) {
     const dx = x1 - x0, dy = y1 - y0;
     const dist = Math.hypot(dx, dy);
-    if (dist < 0.3) { stamp(x1, y1, p1, vel, angle, aspect); return; }
+    if (dist < 0.3) { mirrorStamp(x1, y1, p1, vel, angle, aspect); return; }
 
     const avgP = (p0 + p1) / 2;
     const pMapped = Math.pow(Math.max(avgP, 0.001), brush.pressureCurve);
@@ -296,7 +352,7 @@
 
     for (let i = 0; i <= n; i++) {
       const t = i / n;
-      stamp(x0 + dx * t, y0 + dy * t, p0 + (p1 - p0) * t, vel, angle, aspect);
+      mirrorStamp(x0 + dx * t, y0 + dy * t, p0 + (p1 - p0) * t, vel, angle, aspect);
     }
   }
 
@@ -353,10 +409,26 @@
     stroke.history = [{ x, y: cy, p }];
     stroke.totalDist = 0;
     stroke.tremorPhase = Math.random() * Math.PI * 2;
-    hasLastStamp = false;
+    lastStamp.forEach(ls => ls.has = false);
+    // Randomize mirror personalities per stroke
+    const types = ['normal', 'splatter', 'particle'];
+    stroke.mirrorOffsets = [0, 1].map(() => ({
+      xOff: 20 + Math.random() * 80,
+      yScale: 0.4 + Math.random() * 1.2,
+      pScale: 0.3 + Math.random() * 0.7,
+      vScale: 0.5 + Math.random() * 1.0,
+      rScale: 0.3 + Math.random() * 1.7,       // radius multiplier
+      opacScale: 0.4 + Math.random() * 0.6,     // opacity multiplier
+      brushType: types[Math.floor(Math.random() * types.length)],
+      driftFreq: 0.01 + Math.random() * 0.03,   // path wander frequency
+      driftAmp: 10 + Math.random() * 40,         // path wander amplitude
+      driftPhaseX: Math.random() * Math.PI * 2,
+      driftPhaseY: Math.random() * Math.PI * 2,
+      timeScale: 0.7 + Math.random() * 0.6,     // how fast drift evolves
+    }));
     computeTilt(e);
 
-    stamp(x, cy, p, 0, stroke.angle, stroke.aspect, brush.taper > 0 ? 0.1 : 1);
+    mirrorStamp(x, cy, p, 0, stroke.angle, stroke.aspect, brush.taper > 0 ? 0.1 : 1);
     updateHUD(e);
   }
 
@@ -441,7 +513,7 @@
             fx += perpX * wobble;
             fy += perpY * wobble;
           }
-          stamp(fx, fy, cp, stroke.velocity, stroke.angle, stroke.aspect, taperIn);
+          mirrorStamp(fx, fy, cp, stroke.velocity, stroke.angle, stroke.aspect, taperIn);
         }
       } else {
         strokeSegment(
@@ -476,7 +548,7 @@
         ip *= 0.85;
         // Taper out at stroke end
         const taperOut = brush.taper > 0 ? decay * decay : 1;
-        stamp(ix, iy, ip, stroke.velocity * d2, stroke.angle, stroke.aspect, taperOut);
+        mirrorStamp(ix, iy, ip, stroke.velocity * d2, stroke.angle, stroke.aspect, taperOut);
       }
     }
     stroke.active = false;
@@ -589,6 +661,12 @@
 
   document.getElementById('btn-brush-panel').addEventListener('click', () => {
     brushPanel.classList.toggle('open');
+  });
+
+  const btnMirror = document.getElementById('btn-mirror');
+  btnMirror.addEventListener('click', () => {
+    brush.mirror = !brush.mirror;
+    btnMirror.classList.toggle('active', brush.mirror);
   });
 
   document.getElementById('bp-close').addEventListener('click', () => {

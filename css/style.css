@@ -21,6 +21,8 @@ canvas#main {
   width: 100%;
   height: 100%;
   touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── Top bar: stylus HUD ── */
@@ -42,6 +44,11 @@ canvas#main {
 
 .hud-item {
   white-space: nowrap;
+}
+
+.hud-title {
+  color: #ccc;
+  font-weight: 600;
 }
 
 #top-bar .hl {

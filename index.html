@@ -7,6 +7,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SoP">
   <meta name="theme-color" content="#000000">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>Signs of Presence</title>
@@ -18,6 +21,7 @@
 
 <!-- Top bar: stylus HUD -->
 <div id="top-bar">
+  <div class="hud-item hud-title">Signs of Presence</div>
   <div class="hud-item"><span class="hl">type</span><span class="hv" id="s-type">--</span></div>
   <div class="hud-item"><span class="hl">pressure</span><span class="hv" id="s-pressure">--</span><span class="hbar"><span class="hbar-fill" id="s-pbar" style="width:0%"></span></span></div>
   <div class="hud-item"><span class="hl">tiltX</span><span class="hv" id="s-tiltx">--</span></div>
@@ -26,6 +30,7 @@
   <div class="hud-item"><span class="hl">azi</span><span class="hv" id="s-azi">--</span></div>
   <div class="hud-item"><span class="hl">twist</span><span class="hv" id="s-twist">--</span></div>
   <div class="hud-item"><span class="hl">pos</span><span class="hv" id="s-pos">--</span></div>
+  <div class="hud-item"><span class="hl">v</span><span class="hv" id="s-version"></span></div>
 </div>
 
 <!-- Left sidebar: controls -->
@@ -45,6 +50,7 @@
     <div class="vslider-label">Speed</div>
   </div>
   <button id="btn-brush-panel">&#9998;</button>
+  <button class="bt-btn" id="btn-mirror">Mirror</button>
 </div>
 
 <!-- Brush settings panel -->
@@ -71,6 +77,16 @@
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('gesturechange', e => e.preventDefault());
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener('selectstart', e => e.preventDefault());
+document.addEventListener('dragstart', e => e.preventDefault());
+document.addEventListener('copy', e => e.preventDefault());
+// Block long-press callout on all elements
+document.querySelectorAll('*').forEach(el => {
+  el.addEventListener('contextmenu', e => e.preventDefault());
+  el.style.webkitTouchCallout = 'none';
+});
 </script>
 </body>
 </html>

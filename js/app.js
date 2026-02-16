@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.31';
+  const VERSION = '0.32';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -546,9 +546,10 @@
     });
     computeTilt(e);
 
-    // Seed lastStamp with a small radius so first stamp gets smoothed
+    // Seed only primary channel lastStamp — mirror channels stay unseeded
+    // to avoid drawing lines between tracks
     const initR = Math.max(1, brush.maxRadius * 0.05);
-    for (const ls of cur.lastStamp) { ls.x = x; ls.y = y; ls.r = initR; ls.has = true; }
+    cur.lastStamp[0].x = x; cur.lastStamp[0].y = y; cur.lastStamp[0].r = initR; cur.lastStamp[0].has = true;
 
     mirrorStamp(x, y, p, 0, cur.angle, cur.aspect, 0.15);
     updateHUD(e);

@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.15';
+  const VERSION = '0.16';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -284,28 +284,50 @@
         drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, alpha * (0.5 + Math.random() * 0.5), angle, aspect);
       }
     } else {
-      // Normal ink brush — filled ribbon
+      // Normal ink brush — filled polygon ribbon (no circles)
       sctx.save();
       sctx.globalAlpha = alpha;
-      sctx.strokeStyle = '#fff';
       sctx.fillStyle = '#fff';
-      sctx.lineCap = 'round';
-      sctx.lineJoin = 'round';
 
       const ls = stampLastStampOverride || cur.lastStamp[activeStampChannel];
       if (ls.has) {
         const dx = x - ls.x, dy = y - ls.y;
         const dist = Math.hypot(dx, dy);
-        if (dist > 0.1) {
-          // Ribbon: variable-width line segment with round caps
-          sctx.lineWidth = (ls.r + r);
+        if (dist > 0.5) {
+          const dirX = dx / dist, dirY = dy / dist;
+          const nx = -dirY, ny = dirX;
+
+          // Averaged normal at junction (last point)
+          let jnx, jny;
+          if (ls.dirX !== undefined) {
+            const ax = ls.dirX + dirX, ay = ls.dirY + dirY;
+            const al = Math.hypot(ax, ay);
+            if (al > 0.001) { jnx = -ay / al; jny = ax / al; }
+            else { jnx = nx; jny = ny; }
+          } else {
+            jnx = nx; jny = ny;
+          }
+
+          // Four corners of the ribbon quad
+          const l0x = ls.x + jnx * ls.r, l0y = ls.y + jny * ls.r;
+          const r0x = ls.x - jnx * ls.r, r0y = ls.y - jny * ls.r;
+          const l1x = x + nx * r, l1y = y + ny * r;
+          const r1x = x - nx * r, r1y = y - ny * r;
+
+          // Fill the quad
           sctx.beginPath();
-          sctx.moveTo(ls.x, ls.y);
-          sctx.lineTo(x, y);
-          sctx.stroke();
+          sctx.moveTo(l0x, l0y);
+          sctx.lineTo(l1x, l1y);
+          sctx.lineTo(r1x, r1y);
+          sctx.lineTo(r0x, r0y);
+          sctx.closePath();
+          sctx.fill();
+
+          ls.dirX = dirX;
+          ls.dirY = dirY;
         }
       } else {
-        // First point — round dot
+        // First point — small filled dot as start cap
         sctx.beginPath();
         sctx.arc(x, y, r, 0, Math.PI * 2);
         sctx.fill();

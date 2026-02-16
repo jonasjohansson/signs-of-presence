@@ -81,9 +81,6 @@ canvas#main {
 
 /* ── Menu toggle ── */
 #menu-toggle {
-  position: fixed;
-  right: 8px;
-  top: 8px;
   width: 32px;
   height: 32px;
   border-radius: 8px;
@@ -97,12 +94,15 @@ canvas#main {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: right 0.25s ease;
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
 }
 
-#menu-toggle.open {
-  right: 108px;
+#sidebar.collapsed #menu-toggle {
+  transform: translateX(-110px);
+  pointer-events: auto;
 }
+
 
 /* ── Sidebar ── */
 #sidebar {

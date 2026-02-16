@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 11:45';
+  const BUILD = '2026-02-16 11:10';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -232,7 +232,7 @@
   let bleedEnabled = false;
   let bleedParticles = [];
   let bleedFrame = 0;
-  const MAX_BLEED_PARTICLES = 400;
+  const MAX_BLEED_PARTICLES = 800;
 
   let flowEnabled = false;
   const flowPaths = [];
@@ -695,10 +695,11 @@
         sctx.clearRect(score.width - shift, 0, shift, score.height);
         sctx.restore();
       }
+      const cssShift = shift / dpr; // actual CSS-pixel shift (matches score canvas)
       for (const s of strokes.values()) {
         if (s.active) {
-          s.prevX -= brush.scrollSpeed;
-          s.smoothX -= brush.scrollSpeed;
+          s.prevX -= cssShift;
+          s.smoothX -= cssShift;
         }
       }
       for (const bp of bleedParticles) {
@@ -706,7 +707,7 @@
         bp.px -= shift;
       }
       for (const fp of flowPaths) {
-        for (const pt of fp.points) pt.x -= brush.scrollSpeed;
+        for (const pt of fp.points) pt.x -= cssShift;
       }
     }
 
@@ -722,7 +723,7 @@
         const img = bsCtx.getImageData(0, 0, sw, sh);
         const px = img.data;
 
-        const attempts = 50;
+        const attempts = 80;
         for (let a = 0; a < attempts; a++) {
           if (bleedParticles.length >= MAX_BLEED_PARTICLES) break;
           const sx = Math.floor(Math.random() * sw);
@@ -747,16 +748,16 @@
           dirX /= dirLen; dirY /= dirLen;
           const fx = sx * BLEED_SCALE;
           const fy = sy * BLEED_SCALE;
-          const speed = 0.3 + Math.random() * 0.8;
-          const life = 50 + Math.random() * 100;
+          const speed = 0.5 + Math.random() * 1.2;
+          const life = 80 + Math.random() * 160;
 
           bleedParticles.push({
             x: fx, y: fy, px: fx, py: fy,
             vx: dirX * speed,
-            vy: dirY * speed + 0.1,
+            vy: dirY * speed + 0.15,
             life, maxLife: life,
-            size: (0.5 + Math.random() * 2.0) * dpr,
-            alpha: 0.04 + Math.random() * 0.06,
+            size: (1.0 + Math.random() * 3.5) * dpr,
+            alpha: 0.06 + Math.random() * 0.10,
             wobbleFreq: 0.05 + Math.random() * 0.15,
             wobbleAmp: 0.4 + Math.random() * 1.2,
             wobblePhase: Math.random() * Math.PI * 2,
@@ -802,15 +803,15 @@
         sctx.stroke();
 
         // Branching: occasionally spawn sub-tendril
-        if (Math.random() < 0.04 && bleedParticles.length < MAX_BLEED_PARTICLES) {
+        if (Math.random() < 0.07 && bleedParticles.length < MAX_BLEED_PARTICLES) {
           const ba = Math.atan2(p.vy, p.vx) + (Math.random() - 0.5) * Math.PI * 0.8;
-          const bs = 0.15 + Math.random() * 0.3;
-          const bl = Math.floor(p.life * 0.4);
+          const bs = 0.2 + Math.random() * 0.5;
+          const bl = Math.floor(p.life * 0.5);
           bleedParticles.push({
             x: p.x, y: p.y, px: p.x, py: p.y,
-            vx: Math.cos(ba) * bs, vy: Math.sin(ba) * bs + 0.04,
+            vx: Math.cos(ba) * bs, vy: Math.sin(ba) * bs + 0.06,
             life: bl, maxLife: bl,
-            size: p.size * 0.6, alpha: p.alpha * 0.6,
+            size: p.size * 0.7, alpha: p.alpha * 0.7,
             wobbleFreq: 0.06 + Math.random() * 0.12,
             wobbleAmp: 0.3 + Math.random() * 0.8,
             wobblePhase: Math.random() * Math.PI * 2,
@@ -1228,16 +1229,12 @@
   // Start collapsed on small screens
   if (window.innerWidth < 768) {
     sidebar.classList.add('collapsed');
-  } else {
-    menuToggle.classList.add('open');
   }
 
   menuToggle.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
     const isCollapsed = sidebar.classList.toggle('collapsed');
-    menuToggle.classList.toggle('open', !isCollapsed);
-    // Close brush panel when hiding sidebar
     if (isCollapsed) brushPanel.classList.remove('open');
   });
 

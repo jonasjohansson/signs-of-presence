@@ -79,6 +79,31 @@ canvas#main {
   transition: width 0.06s;
 }
 
+/* ── Menu toggle ── */
+#menu-toggle {
+  position: fixed;
+  right: 8px;
+  top: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(51, 51, 51, 0.8);
+  border: 1px solid #555;
+  color: #aaa;
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 30;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: right 0.25s ease;
+}
+
+#menu-toggle.open {
+  right: 108px;
+}
+
 /* ── Sidebar ── */
 #sidebar {
   position: fixed;
@@ -92,6 +117,12 @@ canvas#main {
   justify-content: center;
   gap: 8px;
   z-index: 20;
+  transition: transform 0.25s ease;
+}
+
+#sidebar.collapsed {
+  transform: translateX(110px);
+  pointer-events: none;
 }
 
 /* ── Button groups ── */

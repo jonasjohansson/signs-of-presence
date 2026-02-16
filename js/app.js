@@ -1,5 +1,5 @@
 (() => {
-  const BUILD = '2026-02-16 10:24';
+  const BUILD = '2026-02-16 11:45';
   document.getElementById('s-version').textContent = BUILD;
 
   /* ════════════════════════════════════════════════
@@ -684,13 +684,17 @@
 
     if (brush.scrollSpeed > 0) {
       scrollAccum += brush.scrollSpeed;
-      const shift = brush.scrollSpeed * dpr;
-      sctx.save();
-      sctx.setTransform(1, 0, 0, 1, 0, 0);
-      sctx.globalCompositeOperation = 'copy';
-      sctx.drawImage(score, -shift, 0);
-      sctx.globalCompositeOperation = 'source-over';
-      sctx.restore();
+      const shift = Math.round(brush.scrollSpeed * dpr); // integer pixels to prevent sub-pixel ghosting
+      if (shift > 0) {
+        sctx.save();
+        sctx.setTransform(1, 0, 0, 1, 0, 0);
+        sctx.globalCompositeOperation = 'copy';
+        sctx.drawImage(score, -shift, 0);
+        sctx.globalCompositeOperation = 'source-over';
+        // Clear the revealed strip on the right to prevent ghost artifacts
+        sctx.clearRect(score.width - shift, 0, shift, score.height);
+        sctx.restore();
+      }
       for (const s of strokes.values()) {
         if (s.active) {
           s.prevX -= brush.scrollSpeed;
@@ -1214,6 +1218,35 @@
   };
 
   canvas.addEventListener('pointerenter', _flashHUD);
+
+  /* ════════════════════════════════════════════════
+   *  Hamburger menu toggle
+   * ════════════════════════════════════════════════ */
+  const menuToggle = document.getElementById('menu-toggle');
+  const sidebar = document.getElementById('sidebar');
+
+  // Start collapsed on small screens
+  if (window.innerWidth < 768) {
+    sidebar.classList.add('collapsed');
+  } else {
+    menuToggle.classList.add('open');
+  }
+
+  menuToggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const isCollapsed = sidebar.classList.toggle('collapsed');
+    menuToggle.classList.toggle('open', !isCollapsed);
+    // Close brush panel when hiding sidebar
+    if (isCollapsed) brushPanel.classList.remove('open');
+  });
+
+  // Keyboard shortcut: 'h' to toggle sidebar
+  document.addEventListener('keydown', e => {
+    if (e.key.toLowerCase() === 'h' && !brushPanel.classList.contains('open')) {
+      menuToggle.click();
+    }
+  });
 
   /* ════════════════════════════════════════════════
    *  Init

@@ -319,3 +319,101 @@ canvas#main {
   font-variant-numeric: tabular-nums;
   color: #ccc;
 }
+
+/* ── Mobile: smaller UI ── */
+@media (max-width: 768px) {
+  #sidebar {
+    width: 72px;
+    gap: 5px;
+  }
+
+  #sidebar.collapsed {
+    transform: translateX(82px);
+  }
+
+  #sidebar.collapsed #menu-toggle {
+    transform: translateX(-82px);
+  }
+
+  #menu-toggle {
+    width: 42px;
+    height: 26px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  .bt-btn {
+    width: 42px;
+    height: 26px;
+    font-size: 10px;
+    border-radius: 6px;
+  }
+
+  .brush-types {
+    gap: 4px;
+  }
+
+  .btn-group {
+    gap: 3px;
+    padding: 3px;
+    border-radius: 8px;
+  }
+
+  .vslider {
+    width: 30px;
+    height: 60px;
+    border-radius: 15px;
+  }
+
+  .vslider-fill {
+    border-radius: 15px;
+  }
+
+  .vslider-label {
+    font-size: 8px;
+    top: 6px;
+  }
+
+  #brush-preview {
+    width: 32px;
+    height: 32px;
+  }
+
+  #btn-brush-panel {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+
+  #top-bar {
+    font-size: 9px;
+    gap: 10px;
+  }
+
+  #brush-panel {
+    right: 72px;
+    width: calc((100vw - 72px) * 0.45);
+    padding: 12px;
+    font-size: 11px;
+    border-radius: 10px;
+  }
+
+  .bp-header {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .bp-row {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .bp-row label {
+    flex: 0 0 65px;
+    font-size: 11px;
+  }
+
+  .bp-row .bp-val {
+    font-size: 10px;
+  }
+}

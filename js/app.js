@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.34';
+  const VERSION = '0.35';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -506,10 +506,10 @@
     cur.tremorPhase = Math.random() * Math.PI * 2;
     cur.sourceTrack = detectTrack(y);
 
-    // Each mirror track gets a distinct stroke personality (same brush, different feel)
+    // Each mirror track gets a distinct personality: different brush + stroke variation
+    const types = ['normal', 'splatter', 'particle'];
     const drift = brush.mirrorDrift;
     cur.mirrorOffsets = [0, 1].map((_, m) => {
-      // Drift = simple X offset + time delay
       const delay = drift ? 150 + m * 200 + Math.random() * 300 : 0;
       const xOff = drift ? 100 + m * 150 + Math.random() * 200 : 0;
       if (delay > 0) {
@@ -517,13 +517,13 @@
       }
       return {
         xOff,
-        yScale: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 1.0), // may flip Y
+        yScale: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 1.0),
         pScale: 0.2 + Math.random() * 1.0,
         vScale: 0.3 + Math.random() * 1.2,
         rScale: 0.15 + Math.random() * 2.0,
         opacScale: 1,
-        brushType: brush.type, // same brush, different stroke
-        jitter: Math.random() * 8, // positional noise
+        brushType: types[Math.floor(Math.random() * types.length)],
+        jitter: Math.random() * 8,
         delay,
       };
     });

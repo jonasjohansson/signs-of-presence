@@ -1,5 +1,6 @@
 (() => {
-  const VERSION = '0.38';
+  console.log('[SOP] script start');
+  const VERSION = '0.39';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -704,6 +705,7 @@
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
+  console.log('[SOP] pointer listeners registered on canvas', canvas);
 
   // Debug: catch pointer events that hit the document but not the canvas
   document.addEventListener('pointerdown', e => {

@@ -185,9 +185,9 @@
    *  Brush engine
    * ════════════════════════════════════════════════ */
   function remapPressure(p) {
-    // Keep low pressures thin, scale up so 0.75 hits max
-    const scaled = p / 0.75;
-    return Math.min(1, scaled * scaled); // quadratic: preserves thin at light touch
+    // Scale so 0.75 hits max, use sqrt for responsive light touches
+    const scaled = Math.min(p / 0.75, 1);
+    return Math.sqrt(scaled);
   }
 
   function computeRadius(pressure, velocity) {

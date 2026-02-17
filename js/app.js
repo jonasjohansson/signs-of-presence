@@ -23,9 +23,10 @@
     const c = DAB_RES / 2;
     const grad = dabCtx.createRadialGradient(c, c, 0, c, c, c);
     const hard = Math.max(0.01, 1 - brush.softness);
-    grad.addColorStop(0, '#fff');
-    grad.addColorStop(Math.min(hard, 0.99), '#fff');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    const r = parseInt(drawColor.slice(1,3),16), g = parseInt(drawColor.slice(3,5),16), b = parseInt(drawColor.slice(5,7),16);
+    grad.addColorStop(0, drawColor);
+    grad.addColorStop(Math.min(hard, 0.99), drawColor);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
     dabCtx.fillStyle = grad;
     dabCtx.beginPath();
     dabCtx.arc(c, c, c, 0, Math.PI * 2);
@@ -37,6 +38,7 @@
    * ════════════════════════════════════════════════ */
   let W, H, dpr;
   const SIDEBAR_W = 100;
+  let drawColor = '#ffffff';
   let lanes = [];
   let trackBounds = [];
 
@@ -296,7 +298,7 @@
       // Normal ink brush — filled capsule stamps
       sctx.save();
       sctx.globalAlpha = alpha;
-      sctx.fillStyle = '#fff';
+      sctx.fillStyle = drawColor;
 
       const ls = stampLastStampOverride || cur.lastStamp[activeStampChannel];
       if (ls.has) {
@@ -805,8 +807,8 @@
     if (bleedEnabled && bleedParticles.length > 0) {
       sctx.save();
       sctx.setTransform(1, 0, 0, 1, 0, 0);
-      sctx.fillStyle = '#fff';
-      sctx.strokeStyle = '#fff';
+      sctx.fillStyle = drawColor;
+      sctx.strokeStyle = drawColor;
       sctx.lineCap = 'round';
       for (let i = bleedParticles.length - 1; i >= 0; i--) {
         const p = bleedParticles[i];
@@ -839,7 +841,7 @@
     if (growEnabled && growBranches.length > 0) {
       sctx.save();
       sctx.setTransform(1, 0, 0, 1, 0, 0);
-      sctx.strokeStyle = '#fff';
+      sctx.strokeStyle = drawColor;
       sctx.lineCap = 'round';
       for (let i = growBranches.length - 1; i >= 0; i--) {
         const g = growBranches[i];
@@ -933,7 +935,7 @@
         } else break;
       }
 
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = drawColor;
       for (const fp of flowPaths) {
         const pts = fp.points;
         if (pts.length < 2) continue;
@@ -990,7 +992,7 @@
     if (flockEnabled && flockParticles.length > 0) {
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.strokeStyle = '#fff';
+      ctx.strokeStyle = drawColor;
       ctx.lineCap = 'round';
       for (const b of flockParticles) {
         const t = b.trail;
@@ -1058,6 +1060,7 @@
     brushDot.style.width = d + 'px';
     brushDot.style.height = d + 'px';
     brushDot.style.opacity = brush.opacity;
+    brushDot.style.background = drawColor;
   }
 
   setupSlider('vs-size', 'vsf-size', 0.5, 80, brush.maxRadius, v => {
@@ -1069,8 +1072,19 @@
     brush.scrollSpeed = v;
   });
 
+  setupSlider('vs-opacity', 'vsf-opacity', 0.05, 1, brush.opacity, v => {
+    brush.opacity = v;
+    updatePreview();
+  });
+
   setupSlider('vs-lines', 'vsf-lines', 0, 0.5, trackLineOpacity, v => {
     trackLineOpacity = v;
+  });
+
+  document.getElementById('color-picker').addEventListener('input', e => {
+    drawColor = e.target.value;
+    buildDab();
+    updatePreview();
   });
 
   updatePreview();
@@ -1133,7 +1147,12 @@
       b.classList.toggle('active', b.dataset.type === 'normal'));
 
     brush.maxRadius = 80;
+    brush.opacity = 1.0;
+    drawColor = '#ffffff';
+    document.getElementById('color-picker').value = '#ffffff';
     document.getElementById('vsf-size').style.height = '100%';
+    document.getElementById('vsf-opacity').style.height = '100%';
+    buildDab();
     updatePreview();
 
     setSlider('bp-stream',  'bpv-stream',  60);

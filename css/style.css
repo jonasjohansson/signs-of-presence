@@ -93,7 +93,12 @@ canvas#main {
   padding: 6px;
   align-content: center;
   z-index: 20;
+  pointer-events: none;
   transition: transform 0.25s ease;
+}
+
+#sidebar > * {
+  pointer-events: auto;
 }
 
 /* ── Brush type buttons ── */

@@ -94,8 +94,9 @@
   /* ════════════════════════════════════════════════
    *  Layout / resize
    * ════════════════════════════════════════════════ */
-  const MARGIN = 0.12;
+  const MARGIN = 0.22;
   const GAP = 0.02;
+  let trackLineOpacity = 0.15;
 
   function resize() {
     dpr = window.devicePixelRatio || 1;
@@ -911,7 +912,7 @@
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.strokeStyle = `rgba(255,255,255,${trackLineOpacity})`;
     ctx.lineWidth = 0.5;
     for (const y of lanes) {
       ctx.beginPath();
@@ -1066,6 +1067,10 @@
 
   setupSlider('vs-speed', 'vsf-speed', 0, 3, brush.scrollSpeed, v => {
     brush.scrollSpeed = v;
+  });
+
+  setupSlider('vs-lines', 'vsf-lines', 0, 0.5, trackLineOpacity, v => {
+    trackLineOpacity = v;
   });
 
   updatePreview();

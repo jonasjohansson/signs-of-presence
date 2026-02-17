@@ -745,8 +745,8 @@
     if (trailEnabled) {
       sctx.save();
       sctx.setTransform(1, 0, 0, 1, 0, 0);
-      sctx.globalCompositeOperation = 'destination-out';
-      sctx.fillStyle = 'rgba(0,0,0,0.008)';
+      sctx.globalCompositeOperation = 'source-over';
+      sctx.fillStyle = 'rgba(0,0,0,0.001)';
       sctx.fillRect(0, 0, score.width, score.height);
       sctx.restore();
     }

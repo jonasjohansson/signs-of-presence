@@ -488,7 +488,11 @@
    *  Pointer events (multi-pointer: up to 3)
    * ════════════════════════════════════════════════ */
   function onDown(e) {
-    if (strokes.size >= MAX_POINTERS) return;
+    console.log(`[DOWN] id=${e.pointerId} type=${e.pointerType} btn=${e.button} pressure=${e.pressure} strokes=${strokes.size}/${MAX_POINTERS} target=${e.target.id || e.target.tagName}`);
+    if (strokes.size >= MAX_POINTERS) {
+      console.warn(`[DOWN] REJECTED — strokes full (${[...strokes.keys()]})`);
+      return;
+    }
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
 
@@ -650,8 +654,12 @@
   }
 
   function onUp(e) {
+    console.log(`[UP] id=${e.pointerId} type=${e.type} strokes=${strokes.size}`);
     cur = strokes.get(e.pointerId);
-    if (!cur) return;
+    if (!cur) {
+      console.warn(`[UP] no stroke found for pointer ${e.pointerId}`);
+      return;
+    }
 
     if (cur.active && brush.inertia > 0 && cur.velocity > 0.01) {
       const dx = cur.smoothX - cur.prevX;
@@ -696,6 +704,13 @@
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
+
+  // Debug: catch pointer events that hit the document but not the canvas
+  document.addEventListener('pointerdown', e => {
+    if (e.target !== canvas) {
+      console.warn(`[DOC-DOWN] hit non-canvas: ${e.target.id || e.target.className || e.target.tagName} type=${e.pointerType}`);
+    }
+  }, true);
 
   /* ════════════════════════════════════════════════
    *  Render loop

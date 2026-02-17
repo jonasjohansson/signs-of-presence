@@ -780,13 +780,13 @@
               wobbleFreq: 0.05 + Math.random() * 0.15, wobbleAmp: 0.4 + Math.random() * 1.2,
               wobblePhase: Math.random() * Math.PI * 2 });
           }
-          if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.3) {
-            const life = 80 + Math.random() * 200;
+          if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.2) {
+            const life = 50 + Math.random() * 100;
             growBranches.push({ x: ex, y: ey,
-              angle: Math.atan2(ndy, ndx), speed: (0.5 + Math.random() * 1.5) * dpr,
+              angle: Math.atan2(ndy, ndx), speed: (0.4 + Math.random() * 1.0) * dpr,
               curvature: (Math.random() - 0.5) * 0.1,
-              life, maxLife: life, size: (0.8 + Math.random() * 2.0) * dpr,
-              branchProb: 0.03 + Math.random() * 0.04 });
+              life, maxLife: life, size: (0.5 + Math.random() * 1.2) * dpr,
+              branchProb: 0.02 + Math.random() * 0.03 });
           }
           if (flockEnabled && flockParticles.length < MAX_FLOCK && Math.random() < 0.4) {
             const speed = (1 + Math.random() * 1.5) * dpr;
@@ -852,8 +852,8 @@
         g.life--;
         if (g.life <= 0 || g.x < -20) { growBranches.splice(i, 1); continue; }
         const lifePct = g.life / g.maxLife;
-        sctx.globalAlpha = Math.min(lifePct * 4, 1) * lifePct * 0.6;
-        sctx.lineWidth = g.size * (0.3 + lifePct * 0.7);
+        sctx.globalAlpha = Math.min(lifePct * 3, 1) * lifePct * lifePct * 0.4;
+        sctx.lineWidth = g.size * (0.2 + lifePct * 0.6);
         sctx.beginPath(); sctx.moveTo(px, py); sctx.lineTo(g.x, g.y); sctx.stroke();
         if (Math.random() < g.branchProb && growBranches.length < MAX_GROW && lifePct > 0.2) {
           const side = Math.random() < 0.5 ? 1 : -1;

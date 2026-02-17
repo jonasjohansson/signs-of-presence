@@ -52,7 +52,7 @@
     speedThinning: 0.30,
     minSizePct: 0.05,
     softness: 0.15,
-    tiltInfluence: 0.70,
+    tiltInfluence: 0.25,
     scatterRadius: 0,
     scatterDensity: 4,
     taper: 0.2,

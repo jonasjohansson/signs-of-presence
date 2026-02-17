@@ -39,6 +39,10 @@
   let W, H, dpr;
   const SIDEBAR_W = 100;
   let drawColor = '#ffffff';
+  let gradientEnabled = false;
+  let gradColorA = '#ffffff';
+  let gradColorB = '#ffffff';
+  let gradT = 0;
   let lanes = [];
   let trackBounds = [];
 
@@ -183,6 +187,21 @@
     cur.aspect = Math.max(0.1, cur.smAspect);
   }
 
+  function lerpColor(a, b, t) {
+    const ar = parseInt(a.slice(1,3),16), ag = parseInt(a.slice(3,5),16), ab = parseInt(a.slice(5,7),16);
+    const br = parseInt(b.slice(1,3),16), bg = parseInt(b.slice(3,5),16), bb = parseInt(b.slice(5,7),16);
+    const r = Math.round(ar + (br - ar) * t), g = Math.round(ag + (bg - ag) * t), bl = Math.round(ab + (bb - ab) * t);
+    return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${bl.toString(16).padStart(2,'0')}`;
+  }
+
+  function updateGradColor() {
+    if (!gradientEnabled) return;
+    gradT += 0.005;
+    if (gradT > 1) gradT = 0;
+    drawColor = lerpColor(gradColorA, gradColorB, (Math.sin(gradT * Math.PI * 2) + 1) / 2);
+    buildDab();
+  }
+
   /* ════════════════════════════════════════════════
    *  Brush engine
    * ════════════════════════════════════════════════ */
@@ -253,6 +272,7 @@
   const bsCtx = bleedSample.getContext('2d', { willReadFrequently: true });
 
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
+    updateGradColor();
     let r = computeRadius(pressure, velocity);
     if (taperMul !== undefined) r *= taperMul;
 
@@ -1081,10 +1101,32 @@
     trackLineOpacity = v;
   });
 
-  document.getElementById('color-picker').addEventListener('input', e => {
-    drawColor = e.target.value;
-    buildDab();
-    updatePreview();
+  // Color palette
+  const swatches = document.querySelectorAll('.cp-swatch');
+  swatches.forEach(sw => {
+    sw.style.background = sw.dataset.color;
+    sw.addEventListener('click', e => {
+      e.stopPropagation();
+      gradColorA = drawColor;
+      drawColor = sw.dataset.color;
+      gradColorB = drawColor;
+      swatches.forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      buildDab();
+      updatePreview();
+    });
+  });
+
+  // Gradient toggle
+  const btnGradient = document.getElementById('btn-gradient');
+  btnGradient.addEventListener('click', () => {
+    gradientEnabled = !gradientEnabled;
+    btnGradient.classList.toggle('active', gradientEnabled);
+    if (!gradientEnabled) {
+      drawColor = gradColorB;
+      buildDab();
+      updatePreview();
+    }
   });
 
   updatePreview();
@@ -1149,7 +1191,8 @@
     brush.maxRadius = 80;
     brush.opacity = 1.0;
     drawColor = '#ffffff';
-    document.getElementById('color-picker').value = '#ffffff';
+    prevColor = '#ffffff';
+    swatches.forEach(s => s.classList.toggle('active', s.dataset.color === '#ffffff'));
     document.getElementById('vsf-size').style.height = '100%';
     document.getElementById('vsf-opacity').style.height = '100%';
     buildDab();

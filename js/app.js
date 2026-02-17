@@ -1,6 +1,5 @@
 (() => {
-  console.log('[SOP] script start');
-  const VERSION = '0.39';
+  const VERSION = '0.37';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -53,7 +52,7 @@
     speedThinning: 0.30,
     minSizePct: 0.05,
     softness: 0.15,
-    tiltInfluence: 0.25,
+    tiltInfluence: 0.70,
     scatterRadius: 0,
     scatterDensity: 4,
     taper: 0.2,
@@ -95,9 +94,8 @@
   /* ════════════════════════════════════════════════
    *  Layout / resize
    * ════════════════════════════════════════════════ */
-  const MARGIN = 0.22;
+  const MARGIN = 0.12;
   const GAP = 0.02;
-  let trackLineOpacity = 0.15;
 
   function resize() {
     dpr = window.devicePixelRatio || 1;
@@ -188,7 +186,7 @@
   function remapPressure(p) {
     // Keep low pressures thin, scale up so 0.75 hits max
     const scaled = p / 0.75;
-    return Math.min(1, scaled * scaled);
+    return Math.min(1, scaled * scaled); // quadratic: preserves thin at light touch
   }
 
   function computeRadius(pressure, velocity) {
@@ -489,11 +487,7 @@
    *  Pointer events (multi-pointer: up to 3)
    * ════════════════════════════════════════════════ */
   function onDown(e) {
-    console.log(`[DOWN] id=${e.pointerId} type=${e.pointerType} btn=${e.button} pressure=${e.pressure} strokes=${strokes.size}/${MAX_POINTERS} target=${e.target.id || e.target.tagName}`);
-    if (strokes.size >= MAX_POINTERS) {
-      console.warn(`[DOWN] REJECTED — strokes full (${[...strokes.keys()]})`);
-      return;
-    }
+    if (strokes.size >= MAX_POINTERS) return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
 
@@ -655,12 +649,8 @@
   }
 
   function onUp(e) {
-    console.log(`[UP] id=${e.pointerId} type=${e.type} strokes=${strokes.size}`);
     cur = strokes.get(e.pointerId);
-    if (!cur) {
-      console.warn(`[UP] no stroke found for pointer ${e.pointerId}`);
-      return;
-    }
+    if (!cur) return;
 
     if (cur.active && brush.inertia > 0 && cur.velocity > 0.01) {
       const dx = cur.smoothX - cur.prevX;
@@ -705,14 +695,6 @@
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
-  console.log('[SOP] pointer listeners registered on canvas', canvas);
-
-  // Debug: catch pointer events that hit the document but not the canvas
-  document.addEventListener('pointerdown', e => {
-    if (e.target !== canvas) {
-      console.warn(`[DOC-DOWN] hit non-canvas: ${e.target.id || e.target.className || e.target.tagName} type=${e.pointerType}`);
-    }
-  }, true);
 
   /* ════════════════════════════════════════════════
    *  Render loop
@@ -929,7 +911,7 @@
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.strokeStyle = `rgba(255,255,255,${trackLineOpacity})`;
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
     ctx.lineWidth = 0.5;
     for (const y of lanes) {
       ctx.beginPath();
@@ -1084,10 +1066,6 @@
 
   setupSlider('vs-speed', 'vsf-speed', 0, 3, brush.scrollSpeed, v => {
     brush.scrollSpeed = v;
-  });
-
-  setupSlider('vs-lines', 'vsf-lines', 0, 0.5, trackLineOpacity, v => {
-    trackLineOpacity = v;
   });
 
   updatePreview();

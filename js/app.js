@@ -487,16 +487,7 @@
   /* ════════════════════════════════════════════════
    *  Pointer events (multi-pointer: up to 3)
    * ════════════════════════════════════════════════ */
-  let penDetected = false;
-
   function onDown(e) {
-    // Once a pen is seen, reject touch events (palm rejection)
-    if (e.pointerType === 'pen') penDetected = true;
-    if (penDetected && e.pointerType === 'touch') {
-      console.log(`[DOWN] REJECTED touch (pen active)`);
-      return;
-    }
-
     console.log(`[DOWN] id=${e.pointerId} type=${e.pointerType} btn=${e.button} pressure=${e.pressure} strokes=${strokes.size}/${MAX_POINTERS} target=${e.target.id || e.target.tagName}`);
     if (strokes.size >= MAX_POINTERS) {
       console.warn(`[DOWN] REJECTED — strokes full (${[...strokes.keys()]})`);

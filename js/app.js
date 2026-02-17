@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.37';
+  const VERSION = '0.39';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -52,7 +52,7 @@
     speedThinning: 0.30,
     minSizePct: 0.05,
     softness: 0.15,
-    tiltInfluence: 0.70,
+    tiltInfluence: 0.25,
     scatterRadius: 0,
     scatterDensity: 4,
     taper: 0.2,
@@ -94,8 +94,9 @@
   /* ════════════════════════════════════════════════
    *  Layout / resize
    * ════════════════════════════════════════════════ */
-  const MARGIN = 0.12;
+  const MARGIN = 0.22;
   const GAP = 0.02;
+  let trackLineOpacity = 0.15;
 
   function resize() {
     dpr = window.devicePixelRatio || 1;
@@ -186,7 +187,7 @@
   function remapPressure(p) {
     // Keep low pressures thin, scale up so 0.75 hits max
     const scaled = p / 0.75;
-    return Math.min(1, scaled * scaled); // quadratic: preserves thin at light touch
+    return Math.min(1, scaled * scaled);
   }
 
   function computeRadius(pressure, velocity) {
@@ -911,7 +912,7 @@
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.strokeStyle = `rgba(255,255,255,${trackLineOpacity})`;
     ctx.lineWidth = 0.5;
     for (const y of lanes) {
       ctx.beginPath();
@@ -1066,6 +1067,10 @@
 
   setupSlider('vs-speed', 'vsf-speed', 0, 3, brush.scrollSpeed, v => {
     brush.scrollSpeed = v;
+  });
+
+  setupSlider('vs-lines', 'vsf-lines', 0, 0.5, trackLineOpacity, v => {
+    trackLineOpacity = v;
   });
 
   updatePreview();

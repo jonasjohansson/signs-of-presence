@@ -181,8 +181,8 @@ canvas#main {
 #color-palette {
   grid-column: span 2;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 2px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
 }
 
 .cp-swatch {

@@ -66,7 +66,7 @@
     inertia: 0.2,
     mirror: false,
     mirrorDrift: false,
-    scrollSpeed: 0.8,
+    scrollSpeed: 0.5,
   };
 
   /* ── Multi-pointer stroke tracking ── */

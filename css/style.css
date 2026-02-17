@@ -164,6 +164,19 @@ canvas#main {
   display: contents;
 }
 
+/* ── Slider row: 3 sliders side by side ── */
+.slider-row {
+  grid-column: span 2;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.slider-row .vslider {
+  flex: 1;
+  width: auto;
+}
+
 /* ── Vertical slider ── */
 .vslider {
   position: relative;

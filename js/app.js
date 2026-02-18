@@ -1603,34 +1603,6 @@
   });
 
   /* ════════════════════════════════════════════════
-   *  Keyboard shortcuts (for external keyboard use)
-   * ════════════════════════════════════════════════ */
-  document.addEventListener('keydown', e => {
-    if (brushPanel.classList.contains('open')) return;
-    switch (e.key.toLowerCase()) {
-      case 'm': btnMirror.click(); break;
-      case 'd': btnDrift.click(); break;
-      case 'h': btnHue.click(); break;
-      case 'w': btnWild.click(); break;
-      case 'x': btnParallax.click(); break;
-      case 's': btnShake.click(); break;
-      case 'i': btnIntense.click(); break;
-      case 'y': btnSpray.click(); break;
-      case 'f': btnFlow.click(); break;
-      case 'b': btnBleed.click(); break;
-      case 'p': btnPause.click(); break;
-      case ' ': e.preventDefault(); btnPause.click(); break;
-      case 'r': btnRandom.click(); break;
-      case 'c': clearCanvas(); break;
-      case '0': resetBrushDefaults(); break;
-      case '1': document.querySelector('.bt-btn[data-type="normal"]').click(); break;
-      case '2': document.querySelector('.bt-btn[data-type="splatter"]').click(); break;
-      case '3': document.querySelector('.bt-btn[data-type="particle"]').click(); break;
-      case '4': document.querySelector('.bt-btn[data-type="silk"]').click(); break;
-    }
-  });
-
-  /* ════════════════════════════════════════════════
    *  HUD auto-hide (fades after 3s inactivity)
    * ════════════════════════════════════════════════ */
   const topBar = document.getElementById('top-bar');

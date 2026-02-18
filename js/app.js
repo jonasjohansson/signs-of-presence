@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.42';
+  const VERSION = '0.43';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -8,18 +8,7 @@
   const canvas = document.getElementById('main');
   const ctx = canvas.getContext('2d');
   const score = document.createElement('canvas');
-  let sctx = score.getContext('2d');
-  const baseSctx = sctx;
-
-  // Parallax layers — each stroke gets a random layer with its own scroll speed
-  const NUM_LAYERS = 4;
-  const scoreLayers = [];
-  for (let i = 0; i < NUM_LAYERS; i++) {
-    const cvs = document.createElement('canvas');
-    const lctx = cvs.getContext('2d');
-    scoreLayers.push({ canvas: cvs, ctx: lctx, speed: 0.82 + (i / (NUM_LAYERS - 1)) * 0.36 });
-  }
-  // speeds: 0.82, 0.94, 1.06, 1.18
+  const sctx = score.getContext('2d');
 
   /* ════════════════════════════════════════════════
    *  Pre-rendered dab texture
@@ -70,7 +59,6 @@
   let W, H, dpr;
   const SIDEBAR_W = 100;
   let drawColor = '#ffffff';
-  let parallaxEnabled = false;
   let mirrorHueEnabled = false;
   let mirrorWild = false;
   let shakeEnabled = false;
@@ -127,7 +115,6 @@
         { x: 0, y: 0, r: 0, has: false },
       ],
       silkFibers: [null, null, null],
-      layer: -1,
     };
   }
 
@@ -157,15 +144,10 @@
     bleedSample.height = Math.ceil(H * dpr / BLEED_SCALE);
 
     if (tmp.width > 0 && tmp.height > 0)
-      baseSctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, 0, 0, score.width, score.height);
+      sctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, 0, 0, score.width, score.height);
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    baseSctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    for (const layer of scoreLayers) {
-      layer.canvas.width = W * dpr;
-      layer.canvas.height = H * dpr;
-      layer.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const usable = 1 - MARGIN * 2 - GAP * 2;
     const trackPct = usable / 3;
@@ -310,10 +292,9 @@
 
   let constellationEnabled = false;
   let constellationStars = [];
-  const MAX_STARS = 300;
+  const MAX_STARS = 200;
   const STAR_CONNECT_DIST = 120; // CSS px
 
-  let pulseEnabled = false;
 
   // Shared edge sampling canvas (GPU→CPU fast at low res)
   const BLEED_SCALE = 4;
@@ -366,7 +347,6 @@
       // Silk brush — volumetric ribbon with 3D lighting
       const ch = activeStampChannel;
       if (!cur.silkFibers[ch]) cur.silkFibers[ch] = initSilkFibers(x, y);
-      const fibers = cur.silkFibers[ch];
       const halfW = r;
 
       // Perpendicular to stroke direction
@@ -375,8 +355,13 @@
       if (ls.has) {
         const ddx = x - ls.x, ddy = y - ls.y;
         const dd = Math.hypot(ddx, ddy);
-        if (dd > 0.5) { perpX = -ddy / dd; perpY = ddx / dd; }
+        if (dd > r * 6) {
+          // Too far — reset fibers to prevent cross-track lines
+          ls.has = false;
+          cur.silkFibers[ch] = initSilkFibers(x, y);
+        } else if (dd > 0.5) { perpX = -ddy / dd; perpY = ddx / dd; }
       }
+      const fibers = cur.silkFibers[ch];
 
       // Light direction from tilt angle
       const lightAngle = cur.angle || 0;
@@ -423,7 +408,9 @@
       if (ls.has) {
         const dx = x - ls.x, dy = y - ls.y;
         const dist = Math.hypot(dx, dy);
-        if (dist > 0.1) {
+        // Break connection if jump is too large (prevents cross-track lines)
+        if (dist > r * 6) { ls.has = false; }
+        else if (dist > 0.1) {
           const nx = -dy / dist, ny = dx / dist;
           sctx.beginPath();
           sctx.moveTo(ls.x + nx * ls.r, ls.y + ny * ls.r);
@@ -481,14 +468,19 @@
     mirrorTime++;
 
     // Constellation: place star points along strokes
-    if (constellationEnabled && constellationStars.length < MAX_STARS && Math.random() < 0.015) {
+    if (constellationEnabled && constellationStars.length < MAX_STARS && Math.random() < 0.04) {
       constellationStars.push({ x, y });
-      // Draw small bright dot on score canvas
+      // Draw bright dot on score canvas
       sctx.save();
-      sctx.globalAlpha = 0.9;
+      sctx.globalAlpha = 1;
       sctx.fillStyle = drawColor;
       sctx.beginPath();
-      sctx.arc(x, y, 1.5, 0, Math.PI * 2);
+      sctx.arc(x, y, 2.5, 0, Math.PI * 2);
+      sctx.fill();
+      // Add soft glow around star
+      sctx.globalAlpha = 0.3;
+      sctx.beginPath();
+      sctx.arc(x, y, 6, 0, Math.PI * 2);
       sctx.fill();
       sctx.restore();
     }
@@ -538,7 +530,6 @@
             opacity: brush.opacity * mo.opacScale,
             channel: m,
             color: mo.color || null,
-            layer: cur.layer,
             newStroke: false,
           });
         } else {
@@ -573,7 +564,6 @@
         continue;
       }
       if (!cur) continue;
-      if (e.layer >= 0) sctx = scoreLayers[e.layer].ctx;
       const scrollDelta = scrollAccum - e.scrollAt;
       const savedType = brush.type;
       const savedMax = brush.maxRadius;
@@ -595,7 +585,6 @@
       brush.opacity = savedOpac;
       drawColor = savedColor;
       activeDabCvs = dabCvs;
-      sctx = baseSctx;
     }
   }
 
@@ -678,8 +667,8 @@
       ? [...document.querySelectorAll('.cp-swatch')].map(s => s.dataset.color).filter(c => c !== drawColor)
       : null;
     cur.mirrorOffsets = [0, 1].map((_, m) => {
-      const delay = drift ? 150 + m * 200 + Math.random() * 300 : 0;
-      const xOff = drift ? 100 + m * 150 + Math.random() * 200 : 0;
+      const delay = drift ? 150 + m * 180 + Math.random() * 300 : 0;
+      const xOff = drift ? 80 + m * 120 + Math.random() * 160 : 0;
       if (delay > 0) {
         mirrorQueue.push({ executeAt: performance.now() + delay, newStroke: true, channel: m });
       }
@@ -688,31 +677,25 @@
       return {
         xOff,
         color,
-        yScale: 0.3 + Math.random() * 1.2,
-        pScale: 0.15 + Math.random() * 0.8,
-        vScale: 0.3 + Math.random() * 1.2,
-        rScale: 0.15 + Math.random() * 1.8,
+        yScale: 0.6 + Math.random() * 0.6,
+        pScale: 0.4 + Math.random() * 0.5,
+        vScale: 0.5 + Math.random() * 0.8,
+        rScale: 0.4 + Math.random() * 0.8,
         opacScale: 1,
         brushType: types[Math.floor(Math.random() * types.length)],
-        // Organic path wandering — large deviation for independent feel
-        wanderFreq: 0.003 + Math.random() * 0.015,
-        wanderAmpX: 20 + Math.random() * 60,
-        wanderAmpY: 15 + Math.random() * 50,
+        // Organic path wandering
+        wanderFreq: 0.004 + Math.random() * 0.015,
+        wanderAmpX: 15 + Math.random() * 45,
+        wanderAmpY: 10 + Math.random() * 35,
         wanderPhaseX: Math.random() * Math.PI * 2,
         wanderPhaseY: Math.random() * Math.PI * 2,
         wanderSpeed: 0.4 + Math.random() * 0.8,
         // Sparse drawing — skip stamps randomly for minimal feel
-        drawChance: 0.25 + Math.random() * 0.4,
+        drawChance: 0.45 + Math.random() * 0.35,
         delay,
       };
     });
     computeTilt(e);
-
-    // Assign stroke to a random parallax layer
-    if (parallaxEnabled) {
-      cur.layer = Math.floor(Math.random() * NUM_LAYERS);
-      sctx = scoreLayers[cur.layer].ctx;
-    }
 
     // Seed only primary channel lastStamp — mirror channels stay unseeded
     // to avoid drawing lines between tracks
@@ -720,7 +703,6 @@
     cur.lastStamp[0].x = x; cur.lastStamp[0].y = y; cur.lastStamp[0].r = initR; cur.lastStamp[0].has = true;
 
     mirrorStamp(x, y, p, 0, cur.angle, cur.aspect, 0.15);
-    sctx = baseSctx;
     updateHUD(e);
   }
 
@@ -729,7 +711,6 @@
     const s = strokes.get(e.pointerId);
     if (!s || !s.active) return;
     cur = s;
-    if (cur.layer >= 0) sctx = scoreLayers[cur.layer].ctx;
     e.preventDefault();
 
     const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
@@ -819,14 +800,12 @@
       cur.prevY = cur.smoothY;
       cur.prevP = cur.smoothP;
     }
-    sctx = baseSctx;
   }
 
   function onUp(e) {
     const s = strokes.get(e.pointerId);
     if (!s) return;
     cur = s;
-    if (cur.layer >= 0) sctx = scoreLayers[cur.layer].ctx;
 
     if (cur.active && brush.inertia > 0 && cur.velocity > 0.01) {
       const dx = cur.smoothX - cur.prevX;
@@ -865,7 +844,6 @@
 
     cur.active = false;
     strokes.delete(e.pointerId);
-    sctx = baseSctx;
     if (e) updateHUD(e);
   }
 
@@ -886,35 +864,19 @@
       const baseShift = Math.round(brush.scrollSpeed * dpr);
 
       if (baseShift > 0) {
-        // Scroll base score canvas (VFX content)
-        baseSctx.save();
-        baseSctx.setTransform(1, 0, 0, 1, 0, 0);
-        baseSctx.globalCompositeOperation = 'copy';
-        baseSctx.drawImage(score, -baseShift, 0);
-        baseSctx.globalCompositeOperation = 'source-over';
-        baseSctx.clearRect(score.width - baseShift, 0, baseShift, score.height);
-        baseSctx.restore();
-
-        // Scroll each parallax layer at its own speed
-        for (const layer of scoreLayers) {
-          const layerShift = parallaxEnabled ? Math.round(baseShift * layer.speed) : baseShift;
-          if (layerShift > 0) {
-            layer.ctx.save();
-            layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
-            layer.ctx.globalCompositeOperation = 'copy';
-            layer.ctx.drawImage(layer.canvas, -layerShift, 0);
-            layer.ctx.globalCompositeOperation = 'source-over';
-            layer.ctx.clearRect(layer.canvas.width - layerShift, 0, layerShift, layer.canvas.height);
-            layer.ctx.restore();
-          }
-        }
+        sctx.save();
+        sctx.setTransform(1, 0, 0, 1, 0, 0);
+        sctx.globalCompositeOperation = 'copy';
+        sctx.drawImage(score, -baseShift, 0);
+        sctx.globalCompositeOperation = 'source-over';
+        sctx.clearRect(score.width - baseShift, 0, baseShift, score.height);
+        sctx.restore();
       }
 
-      // Adjust active stroke coordinates per layer speed
+      // Adjust active stroke coordinates
       for (const s of strokes.values()) {
         if (s.active) {
-          const speed = (parallaxEnabled && s.layer >= 0) ? scoreLayers[s.layer].speed : 1;
-          const sShift = Math.round(baseShift * speed) / dpr;
+          const sShift = baseShift / dpr;
           s.prevX -= sShift;
           s.smoothX -= sShift;
         }
@@ -993,7 +955,6 @@
         const sw = bleedSample.width, sh = bleedSample.height;
         bsCtx.clearRect(0, 0, sw, sh);
         bsCtx.drawImage(score, 0, 0, sw, sh);
-        for (const layer of scoreLayers) bsCtx.drawImage(layer.canvas, 0, 0, sw, sh);
         const img = bsCtx.getImageData(0, 0, sw, sh);
         const px = img.data;
 
@@ -1186,8 +1147,10 @@
       for (const s of strokes.values()) {
         if (s.active) maxP = Math.max(maxP, s.smoothP);
       }
+      // Only trigger shake above pressure threshold
+      const shakeP = Math.max(0, maxP - 0.45) / 0.55; // ramps 0→1 from 45%→100% pressure
       const shakeSz = 0.5 + brush.maxRadius / 80;
-      shakeIntensity += (maxP * 24 * dpr * shakeSz - shakeIntensity) * 0.3;
+      shakeIntensity += (shakeP * 16 * dpr * shakeSz - shakeIntensity) * 0.25;
     } else {
       shakeIntensity *= 0.85;
     }
@@ -1200,9 +1163,6 @@
     const shakeOX = shakeIntensity > 0.5 ? (Math.random() - 0.5) * 2 * shakeIntensity : 0;
     const shakeOY = shakeIntensity > 0.5 ? (Math.random() - 0.5) * 2 * shakeIntensity : 0;
     ctx.drawImage(score, shakeOX, shakeOY);
-    for (const layer of scoreLayers) {
-      ctx.drawImage(layer.canvas, shakeOX, shakeOY);
-    }
 
     ctx.restore();
 
@@ -1316,7 +1276,7 @@
     // Constellation: connecting lines between nearby star points
     if (constellationEnabled && constellationStars.length > 1) {
       ctx.strokeStyle = drawColor;
-      ctx.lineWidth = 0.5;
+      ctx.lineWidth = 0.8;
       const stars = constellationStars;
       const cd2 = STAR_CONNECT_DIST * STAR_CONNECT_DIST;
       for (let i = 0; i < stars.length; i++) {
@@ -1326,7 +1286,7 @@
           if (d2 < cd2) {
             const d = Math.sqrt(d2);
             const fade = 1 - d / STAR_CONNECT_DIST;
-            ctx.globalAlpha = fade * fade * 0.25;
+            ctx.globalAlpha = fade * fade * 0.55;
             ctx.beginPath();
             ctx.moveTo(stars[i].x, stars[i].y);
             ctx.lineTo(stars[j].x, stars[j].y);
@@ -1336,29 +1296,23 @@
       }
       // Draw star dots on overlay
       ctx.fillStyle = drawColor;
+      const now = performance.now();
       for (const s of stars) {
-        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() * 0.003 + s.x * 0.1);
+        const twinkle = 0.85 + 0.15 * Math.sin(now * 0.003 + s.x * 0.1);
+        // Soft glow
+        ctx.globalAlpha = 0.25 * twinkle;
         ctx.beginPath();
-        ctx.arc(s.x, s.y, 1.5, 0, Math.PI * 2);
+        ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Bright core
+        ctx.globalAlpha = twinkle;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 2, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
     }
 
-    // Pulse: breathing glow on all marks
-    if (pulseEnabled) {
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalCompositeOperation = 'lighter';
-      const pulseA = 0.03 + 0.03 * Math.sin(performance.now() * 0.0008);
-      ctx.globalAlpha = pulseA;
-      ctx.drawImage(score, 0, 0);
-      for (const layer of scoreLayers) ctx.drawImage(layer.canvas, 0, 0);
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.restore();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.globalAlpha = 1;
-    }
 
     requestAnimationFrame(frame);
   }
@@ -1535,16 +1489,10 @@
   document.getElementById('btn-default').addEventListener('click', resetBrushDefaults);
 
   function clearCanvas() {
-    baseSctx.save();
-    baseSctx.setTransform(1, 0, 0, 1, 0, 0);
-    baseSctx.clearRect(0, 0, score.width, score.height);
-    baseSctx.restore();
-    for (const layer of scoreLayers) {
-      layer.ctx.save();
-      layer.ctx.setTransform(1, 0, 0, 1, 0, 0);
-      layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-      layer.ctx.restore();
-    }
+    sctx.save();
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.clearRect(0, 0, score.width, score.height);
+    sctx.restore();
     mirrorQueue.length = 0;
     mirrorLastStamp[0].has = false;
     mirrorLastStamp[1].has = false;
@@ -1586,18 +1534,6 @@
   btnConstellation.addEventListener('click', () => {
     constellationEnabled = !constellationEnabled;
     btnConstellation.classList.toggle('active', constellationEnabled);
-  });
-
-  const btnPulse = document.getElementById('btn-pulse');
-  btnPulse.addEventListener('click', () => {
-    pulseEnabled = !pulseEnabled;
-    btnPulse.classList.toggle('active', pulseEnabled);
-  });
-
-  const btnParallax = document.getElementById('btn-parallax');
-  btnParallax.addEventListener('click', () => {
-    parallaxEnabled = !parallaxEnabled;
-    btnParallax.classList.toggle('active', parallaxEnabled);
   });
 
   const btnShake = document.getElementById('btn-shake');

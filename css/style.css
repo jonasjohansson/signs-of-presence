@@ -101,17 +101,12 @@ canvas#main {
   pointer-events: auto;
 }
 
-/* ── Brush type buttons ── */
+/* ── Brush type buttons (2×2 grid) ── */
 .brush-types {
   grid-column: span 2;
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 3px;
-  justify-content: center;
-}
-
-.brush-types .bt-btn {
-  flex: 1;
 }
 
 .bt-btn {
@@ -350,6 +345,7 @@ canvas#main {
 
   .brush-types {
     gap: 2px;
+    grid-template-columns: 1fr 1fr;
   }
 
   .vslider {

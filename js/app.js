@@ -61,7 +61,7 @@
   let drawColor = '#ffffff';
   let trailEnabled = false;
   let parallaxEnabled = false;
-  const PARALLAX_SPEEDS = [0.5, 1.0, 1.6];
+  const PARALLAX_SPEEDS = [0.7, 1.0, 1.3];
   let mirrorHueEnabled = false;
   let mirrorWild = false;
   let shakeEnabled = false;

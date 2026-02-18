@@ -288,6 +288,13 @@
   let flockParticles = [];
   const MAX_FLOCK = 250;
 
+  let intenseEnabled = false;
+  let intensePressure = 0;
+
+  let sprayEnabled = false;
+  let sprayParticles = [];
+  const MAX_SPRAY = 600;
+
   // Shared edge sampling canvas (GPU→CPU fast at low res)
   const BLEED_SCALE = 4;
   const bleedSample = document.createElement('canvas');
@@ -883,6 +890,11 @@
         fp.x -= fShift;
         for (const tp of fp.trail) tp.x -= fShift;
       }
+      for (const sp of sprayParticles) {
+        const sShift = baseShift * (0.85 + sp.z * 0.15);
+        sp.x -= sShift;
+        sp.px -= sShift;
+      }
     }
 
     // Trail: slowly fade the score canvas
@@ -893,6 +905,43 @@
       sctx.fillStyle = 'rgba(0,0,0,0.001)';
       sctx.fillRect(0, 0, score.width, score.height);
       sctx.restore();
+    }
+
+    // ── Intense: pressure-driven VFX boost ──
+    if (intenseEnabled) {
+      let maxP = 0;
+      for (const s of strokes.values()) {
+        if (s.active) maxP = Math.max(maxP, s.smoothP);
+      }
+      intensePressure += (maxP - intensePressure) * 0.3;
+    } else {
+      intensePressure *= 0.9;
+    }
+    const intMul = 1 + intensePressure * intensePressure * 4;
+
+    // ── Spray: radial energy burst from pen position ──
+    if (sprayEnabled) {
+      for (const s of strokes.values()) {
+        if (!s.active) continue;
+        const p = s.smoothP;
+        if (p < 0.25) continue;
+        const intensity = (p - 0.25) / 0.75;
+        const count = Math.floor(intensity * intensity * 10);
+        for (let i = 0; i < count && sprayParticles.length < MAX_SPRAY; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = (1.5 + Math.random() * 5) * intensity * dpr;
+          const life = 30 + Math.random() * 70;
+          sprayParticles.push({
+            x: s.smoothX * dpr, y: s.smoothY * dpr,
+            px: s.smoothX * dpr, py: s.smoothY * dpr,
+            vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+            life, maxLife: life,
+            size: (0.4 + Math.random() * 2.5) * dpr,
+            alpha: 0.2 + Math.random() * 0.6,
+            z: 0.2 + Math.random() * 0.8,
+          });
+        }
+      }
     }
 
     // ── Shared edge sampling for all VFX ──
@@ -906,7 +955,7 @@
         const img = bsCtx.getImageData(0, 0, sw, sh);
         const px = img.data;
 
-        const attempts = 80;
+        const attempts = Math.round(80 * intMul);
         for (let a = 0; a < attempts; a++) {
           const sx = Math.floor(Math.random() * sw);
           const sy = Math.floor(Math.random() * sh);
@@ -928,24 +977,24 @@
 
           // Spawn for each active effect
           if (bleedEnabled && bleedParticles.length < MAX_BLEED_PARTICLES) {
-            const speed = 0.5 + Math.random() * 1.2;
+            const speed = (0.5 + Math.random() * 1.2) * (1 + intensePressure);
             const life = 80 + Math.random() * 160;
             bleedParticles.push({ x: ex, y: ey, px: ex, py: ey,
               vx: ndx * speed, vy: ndy * speed + 0.15,
-              life, maxLife: life, size: (1.5 + Math.random() * 4.5) * dpr,
-              alpha: 0.08 + Math.random() * 0.14, z: 0.2 + Math.random() * 0.8,
+              life, maxLife: life, size: (1.5 + Math.random() * 4.5) * dpr * (1 + intensePressure * 0.5),
+              alpha: (0.08 + Math.random() * 0.14) * (1 + intensePressure * 2), z: 0.2 + Math.random() * 0.8,
               wobbleFreq: 0.05 + Math.random() * 0.15, wobbleAmp: 0.4 + Math.random() * 1.2,
               wobblePhase: Math.random() * Math.PI * 2 });
           }
-          if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.3) {
-            const life = 70 + Math.random() * 140;
+          if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.3 * intMul) {
+            const life = (70 + Math.random() * 140) * (1 + intensePressure * 0.5);
             growBranches.push({ x: ex, y: ey,
-              angle: Math.atan2(ndy, ndx), speed: (0.4 + Math.random() * 1.0) * dpr,
+              angle: Math.atan2(ndy, ndx), speed: (0.4 + Math.random() * 1.0) * dpr * (1 + intensePressure),
               curvature: (Math.random() - 0.5) * 0.1,
-              life, maxLife: life, size: (0.8 + Math.random() * 1.8) * dpr,
+              life, maxLife: life, size: (0.8 + Math.random() * 1.8) * dpr * (1 + intensePressure * 0.5),
               z: 0.2 + Math.random() * 0.8, branchProb: 0.02 + Math.random() * 0.03 });
           }
-          if (flockEnabled && flockParticles.length < MAX_FLOCK && Math.random() < 0.4) {
+          if (flockEnabled && flockParticles.length < MAX_FLOCK && Math.random() < 0.4 * intMul) {
             const speed = (1 + Math.random() * 1.5) * dpr;
             const angle = Math.atan2(ndy, ndx) + (Math.random() - 0.5) * 1.0;
             const life = 200 + Math.random() * 400;
@@ -1026,6 +1075,31 @@
             branchProb: g.branchProb * 0.4 });
           g.branchProb *= 0.5;
         }
+      }
+      sctx.restore();
+    }
+
+    // ── Spray: radial energy particles ──
+    if (sprayParticles.length > 0) {
+      sctx.save();
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.strokeStyle = drawColor;
+      sctx.lineCap = 'round';
+      for (let i = sprayParticles.length - 1; i >= 0; i--) {
+        const p = sprayParticles[i];
+        p.px = p.x; p.py = p.y;
+        p.vx *= 0.96; p.vy *= 0.96;
+        p.vy += 0.03;
+        p.x += p.vx; p.y += p.vy;
+        p.life--;
+        if (p.life <= 0 || p.x < -30) { sprayParticles.splice(i, 1); continue; }
+        const lifePct = p.life / p.maxLife;
+        sctx.globalAlpha = p.alpha * lifePct * (0.3 + p.z * 0.7);
+        sctx.lineWidth = p.size * (0.3 + lifePct * 0.7) * (0.4 + p.z * 0.6);
+        sctx.beginPath();
+        sctx.moveTo(p.px, p.py);
+        sctx.lineTo(p.x, p.y);
+        sctx.stroke();
       }
       sctx.restore();
     }
@@ -1383,6 +1457,7 @@
     bleedParticles.length = 0;
     growBranches.length = 0;
     flockParticles.length = 0;
+    sprayParticles.length = 0;
   }
 
   document.getElementById('btn-clear').addEventListener('click', clearCanvas);
@@ -1421,6 +1496,18 @@
   btnShake.addEventListener('click', () => {
     shakeEnabled = !shakeEnabled;
     btnShake.classList.toggle('active', shakeEnabled);
+  });
+
+  const btnIntense = document.getElementById('btn-intense');
+  btnIntense.addEventListener('click', () => {
+    intenseEnabled = !intenseEnabled;
+    btnIntense.classList.toggle('active', intenseEnabled);
+  });
+
+  const btnSpray = document.getElementById('btn-spray');
+  btnSpray.addEventListener('click', () => {
+    sprayEnabled = !sprayEnabled;
+    btnSpray.classList.toggle('active', sprayEnabled);
   });
 
   const btnFlow = document.getElementById('btn-flow');
@@ -1527,6 +1614,8 @@
       case 'w': btnWild.click(); break;
       case 'x': btnParallax.click(); break;
       case 's': btnShake.click(); break;
+      case 'i': btnIntense.click(); break;
+      case 'y': btnSpray.click(); break;
       case 'f': btnFlow.click(); break;
       case 'b': btnBleed.click(); break;
       case 'p': btnPause.click(); break;

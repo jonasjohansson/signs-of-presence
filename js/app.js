@@ -36,9 +36,9 @@
   let activeDabCvs = dabCvs;
   const mirrorDabCvs = [document.createElement('canvas'), document.createElement('canvas')];
   mirrorDabCvs.forEach(c => { c.width = c.height = DAB_RES; });
+  const mirrorDabCtx = mirrorDabCvs.map(c => c.getContext('2d'));
 
-  function buildDabFor(targetCvs, color) {
-    const tctx = targetCvs.getContext('2d');
+  function buildDabFor(tctx, color) {
     tctx.clearRect(0, 0, DAB_RES, DAB_RES);
     const c = DAB_RES / 2;
     const grad = tctx.createRadialGradient(c, c, 0, c, c, c);
@@ -294,7 +294,6 @@
   let constellationStars = [];
   const MAX_STARS = 200;
   const STAR_CONNECT_DIST = 120; // CSS px
-
 
   // Shared edge sampling canvas (GPU→CPU fast at low res)
   const BLEED_SCALE = 4;
@@ -673,7 +672,7 @@
         mirrorQueue.push({ executeAt: performance.now() + delay, newStroke: true, channel: m });
       }
       const color = hueColors ? hueColors[Math.floor(Math.random() * hueColors.length)] : null;
-      if (color) buildDabFor(mirrorDabCvs[m], color);
+      if (color) buildDabFor(mirrorDabCtx[m], color);
       return {
         xOff,
         color,
@@ -721,9 +720,9 @@
       const ry = ce.clientY;
       const rp = ce.pressure || 0.5;
 
-      const s = brush.streamline;
-      cur.smoothX += (rx - cur.smoothX) * (1 - s);
-      cur.smoothY += (ry - cur.smoothY) * (1 - s);
+      const sl = brush.streamline;
+      cur.smoothX += (rx - cur.smoothX) * (1 - sl);
+      cur.smoothY += (ry - cur.smoothY) * (1 - sl);
       cur.smoothP += (rp - cur.smoothP) * 0.2;
 
       computeTilt(ce);
@@ -844,7 +843,7 @@
 
     cur.active = false;
     strokes.delete(e.pointerId);
-    if (e) updateHUD(e);
+    updateHUD(e);
   }
 
   canvas.addEventListener('pointerdown', onDown);
@@ -874,14 +873,18 @@
       }
 
       // Adjust active stroke coordinates
+      const cssShift = baseShift / dpr;
       for (const s of strokes.values()) {
         if (s.active) {
-          const sShift = baseShift / dpr;
-          s.prevX -= sShift;
-          s.smoothX -= sShift;
+          s.prevX -= cssShift;
+          s.smoothX -= cssShift;
+          for (const ls of s.lastStamp) { if (ls.has) ls.x -= cssShift; }
+          for (const fibers of s.silkFibers) {
+            if (fibers) for (const f of fibers) { f.x -= cssShift; f.px -= cssShift; }
+          }
         }
       }
-      const cssShift = baseShift / dpr;
+      for (const mls of mirrorLastStamp) { if (mls.has) mls.x -= cssShift; }
       for (const bp of bleedParticles) {
         const pShift = baseShift * (0.85 + bp.z * 0.15);
         bp.x -= pShift;
@@ -897,13 +900,12 @@
         for (const tp of fp.trail) tp.x -= fShift;
       }
       for (const sp of sprayParticles) {
-        const sShift = baseShift * (0.85 + sp.z * 0.15);
-        sp.x -= sShift;
-        sp.px -= sShift;
+        const spShift = baseShift * (0.85 + sp.z * 0.15);
+        sp.x -= spShift;
+        sp.px -= spShift;
       }
-      const cssShift2 = baseShift / dpr;
       for (let i = constellationStars.length - 1; i >= 0; i--) {
-        constellationStars[i].x -= cssShift2;
+        constellationStars[i].x -= cssShift;
         if (constellationStars[i].x < -20) constellationStars.splice(i, 1);
       }
     }
@@ -1312,7 +1314,6 @@
       }
       ctx.globalAlpha = 1;
     }
-
 
     requestAnimationFrame(frame);
   }

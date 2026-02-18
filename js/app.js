@@ -61,7 +61,7 @@
   let drawColor = '#ffffff';
   let trailEnabled = false;
   let parallaxEnabled = false;
-  const PARALLAX_SPEEDS = [0.75, 1.0, 1.35];
+  const PARALLAX_SPEEDS = [0.5, 1.0, 1.6];
   let mirrorHueEnabled = false;
   let mirrorWild = false;
   let shakeEnabled = false;
@@ -917,16 +917,18 @@
     } else {
       intensePressure *= 0.9;
     }
-    const intMul = 1 + intensePressure * intensePressure * 4;
+    const intSz = 0.5 + brush.maxRadius / 80;
+    const intMul = 1 + intensePressure * 5 * intSz;
 
     // ── Spray: radial energy burst from pen position ──
     if (sprayEnabled) {
       for (const s of strokes.values()) {
         if (!s.active) continue;
         const p = s.smoothP;
-        if (p < 0.25) continue;
-        const intensity = (p - 0.25) / 0.75;
-        const count = Math.floor(intensity * intensity * 10);
+        if (p < 0.1) continue;
+        const intensity = (p - 0.1) / 0.9;
+        const spraySz = 0.5 + brush.maxRadius / 80;
+        const count = Math.floor(intensity * 12 * spraySz);
         for (let i = 0; i < count && sprayParticles.length < MAX_SPRAY; i++) {
           const angle = Math.random() * Math.PI * 2;
           const speed = (1.5 + Math.random() * 5) * intensity * dpr;
@@ -1144,7 +1146,8 @@
       for (const s of strokes.values()) {
         if (s.active) maxP = Math.max(maxP, s.smoothP);
       }
-      shakeIntensity += (maxP * maxP * 18 * dpr - shakeIntensity) * 0.3;
+      const shakeSz = 0.5 + brush.maxRadius / 80;
+      shakeIntensity += (maxP * 24 * dpr * shakeSz - shakeIntensity) * 0.3;
     } else {
       shakeIntensity *= 0.85;
     }

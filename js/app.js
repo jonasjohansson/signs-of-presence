@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = '0.39';
+  const VERSION = '0.40';
   document.getElementById('s-version').textContent = VERSION;
 
   /* ════════════════════════════════════════════════
@@ -33,6 +33,26 @@
     dabCtx.fill();
   }
 
+  let activeDabCvs = dabCvs;
+  const mirrorDabCvs = [document.createElement('canvas'), document.createElement('canvas')];
+  mirrorDabCvs.forEach(c => { c.width = c.height = DAB_RES; });
+
+  function buildDabFor(targetCvs, color) {
+    const tctx = targetCvs.getContext('2d');
+    tctx.clearRect(0, 0, DAB_RES, DAB_RES);
+    const c = DAB_RES / 2;
+    const grad = tctx.createRadialGradient(c, c, 0, c, c, c);
+    const hard = Math.max(0.01, 1 - brush.softness);
+    const cr = parseInt(color.slice(1,3),16), cg = parseInt(color.slice(3,5),16), cb = parseInt(color.slice(5,7),16);
+    grad.addColorStop(0, color);
+    grad.addColorStop(Math.min(hard, 0.99), color);
+    grad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+    tctx.fillStyle = grad;
+    tctx.beginPath();
+    tctx.arc(c, c, c, 0, Math.PI * 2);
+    tctx.fill();
+  }
+
   /* ════════════════════════════════════════════════
    *  App state
    * ════════════════════════════════════════════════ */
@@ -40,6 +60,10 @@
   const SIDEBAR_W = 100;
   let drawColor = '#ffffff';
   let trailEnabled = false;
+  let parallaxEnabled = false;
+  const PARALLAX_SPEEDS = [0.75, 1.0, 1.35];
+  let mirrorHueEnabled = false;
+  let mirrorWild = false;
   let lanes = [];
   let trackBounds = [];
 
@@ -91,6 +115,7 @@
         { x: 0, y: 0, r: 0, has: false },
         { x: 0, y: 0, r: 0, has: false },
       ],
+      silkFibers: [null, null, null],
     };
   }
 
@@ -219,8 +244,19 @@
       sctx.scale(1, aspect);
     }
     sctx.globalAlpha = alpha;
-    sctx.drawImage(dabCvs, -r, -r, d, d);
+    sctx.drawImage(activeDabCvs, -r, -r, d, d);
     sctx.restore();
+  }
+
+  /* ── Silk brush: volumetric ribbon fibers ── */
+  const SILK_COUNT = 24;
+
+  function initSilkFibers(x, y) {
+    const fibers = [];
+    for (let i = 0; i < SILK_COUNT; i++) {
+      fibers.push({ x, y, px: x, py: y, has: false });
+    }
+    return fibers;
   }
 
   let activeStampChannel = 0;
@@ -234,7 +270,7 @@
   let bleedEnabled = false;
   let bleedParticles = [];
   let bleedFrame = 0;
-  const MAX_BLEED_PARTICLES = 800;
+  const MAX_BLEED_PARTICLES = 1200;
 
   let flowEnabled = false;
   const flowPaths = [];
@@ -242,7 +278,7 @@
 
   let growEnabled = false;
   let growBranches = [];
-  const MAX_GROW = 300;
+  const MAX_GROW = 500;
 
   let flockEnabled = false;
   let flockParticles = [];
@@ -295,6 +331,57 @@
         const pr = 0.5 + Math.random() * r * 0.25;
         drawDab(x + Math.cos(a) * d, y + Math.sin(a) * d, pr, alpha * (0.5 + Math.random() * 0.5), angle, aspect);
       }
+    } else if (brush.type === 'silk') {
+      // Silk brush — volumetric ribbon with 3D lighting
+      const ch = activeStampChannel;
+      if (!cur.silkFibers[ch]) cur.silkFibers[ch] = initSilkFibers(x, y);
+      const fibers = cur.silkFibers[ch];
+      const halfW = r;
+
+      // Perpendicular to stroke direction
+      const ls = stampLastStampOverride || cur.lastStamp[activeStampChannel];
+      let perpX = 0, perpY = -1;
+      if (ls.has) {
+        const ddx = x - ls.x, ddy = y - ls.y;
+        const dd = Math.hypot(ddx, ddy);
+        if (dd > 0.5) { perpX = -ddy / dd; perpY = ddx / dd; }
+      }
+
+      // Light direction from tilt angle
+      const lightAngle = cur.angle || 0;
+
+      sctx.save();
+      sctx.strokeStyle = drawColor;
+      sctx.lineCap = 'round';
+
+      for (let i = 0; i < SILK_COUNT; i++) {
+        const f = fibers[i];
+        const t = (i / (SILK_COUNT - 1)) * 2 - 1; // -1 to 1
+        const offset = t * halfW;
+        const fx = x + perpX * offset;
+        const fy = y + perpY * offset;
+
+        if (f.has) {
+          // Cylindrical lighting: Lambertian + rim
+          const cosLight = Math.cos(t * Math.PI * 0.5 - lightAngle);
+          const rim = Math.pow(1 - Math.abs(t), 0.3) * 0.15;
+          const lightVal = Math.max(0, cosLight) * 0.65 + rim + 0.05;
+
+          sctx.globalAlpha = alpha * lightVal;
+          sctx.lineWidth = 0.5 + r * 0.015;
+          sctx.beginPath();
+          sctx.moveTo(f.px, f.py);
+          sctx.lineTo(fx, fy);
+          sctx.stroke();
+        }
+
+        f.px = f.x; f.py = f.y;
+        f.x = fx; f.y = fy; f.has = true;
+      }
+
+      sctx.restore();
+      ls.x = x; ls.y = y; ls.r = r; ls.has = true;
+
     } else {
       // Normal ink brush — filled capsule stamps
       sctx.save();
@@ -379,8 +466,18 @@
         if (Math.random() > mo.drawChance) continue;
 
         const t = mirrorTime * mo.wanderSpeed;
-        const wx = Math.sin(t * mo.wanderFreq + mo.wanderPhaseX) * mo.wanderAmpX;
-        const wy = Math.cos(t * mo.wanderFreq * 1.3 + mo.wanderPhaseY) * mo.wanderAmpY;
+        let wx, wy;
+        if (mirrorWild) {
+          wx = Math.sin(t * mo.wanderFreq + mo.wanderPhaseX) * mo.wanderAmpX
+             + Math.sin(t * mo.wanderFreq * 3.7 + mo.wanderPhaseY) * mo.wanderAmpX * 0.4
+             + (Math.random() - 0.5) * mo.wanderAmpX * 0.5;
+          wy = Math.cos(t * mo.wanderFreq * 1.3 + mo.wanderPhaseY) * mo.wanderAmpY
+             + Math.cos(t * mo.wanderFreq * 2.9 + mo.wanderPhaseX) * mo.wanderAmpY * 0.4
+             + (Math.random() - 0.5) * mo.wanderAmpY * 0.5;
+        } else {
+          wx = Math.sin(t * mo.wanderFreq + mo.wanderPhaseX) * mo.wanderAmpX;
+          wy = Math.cos(t * mo.wanderFreq * 1.3 + mo.wanderPhaseY) * mo.wanderAmpY;
+        }
         const mx = x + mo.xOff + wx;
         const my = trackMid + relY * trackHalf * mo.yScale + wy;
 
@@ -396,6 +493,7 @@
             maxRadius: brush.maxRadius * mo.rScale,
             opacity: brush.opacity * mo.opacScale,
             channel: m,
+            color: mo.color || null,
             newStroke: false,
           });
         } else {
@@ -403,14 +501,18 @@
           const savedType = brush.type;
           const savedMax = brush.maxRadius;
           const savedOpac = brush.opacity;
+          const savedColor = drawColor;
           brush.type = mo.brushType;
           brush.maxRadius = savedMax * mo.rScale;
           brush.opacity = savedOpac * mo.opacScale;
+          if (mo.color) { drawColor = mo.color; activeDabCvs = mirrorDabCvs[m]; }
           activeStampChannel = m + 1;
           stamp(mx, my, pressure * mo.pScale, velocity * mo.vScale, angle, aspect, taperMul);
           brush.type = savedType;
           brush.maxRadius = savedMax;
           brush.opacity = savedOpac;
+          drawColor = savedColor;
+          activeDabCvs = dabCvs;
         }
       }
     }
@@ -425,14 +527,17 @@
         mirrorLastStamp[e.channel].has = false;
         continue;
       }
+      if (!cur) continue;
       const scrollDelta = scrollAccum - e.scrollAt;
       const savedType = brush.type;
       const savedMax = brush.maxRadius;
       const savedOpac = brush.opacity;
+      const savedColor = drawColor;
 
       brush.type = e.brushType;
       brush.maxRadius = e.maxRadius;
       brush.opacity = e.opacity;
+      if (e.color) { drawColor = e.color; activeDabCvs = mirrorDabCvs[e.channel]; }
       stampLastStampOverride = mirrorLastStamp[e.channel];
       activeStampChannel = 0;
 
@@ -442,6 +547,8 @@
       brush.type = savedType;
       brush.maxRadius = savedMax;
       brush.opacity = savedOpac;
+      drawColor = savedColor;
+      activeDabCvs = dabCvs;
     }
   }
 
@@ -518,16 +625,22 @@
     cur.sourceTrack = detectTrack(y);
 
     // Each mirror track: different brush type + organic path wandering
-    const types = ['normal', 'splatter', 'particle'];
+    const types = ['normal', 'splatter', 'particle', 'silk'];
     const drift = brush.mirrorDrift;
+    const hueColors = mirrorHueEnabled
+      ? [...document.querySelectorAll('.cp-swatch')].map(s => s.dataset.color).filter(c => c !== drawColor)
+      : null;
     cur.mirrorOffsets = [0, 1].map((_, m) => {
       const delay = drift ? 150 + m * 200 + Math.random() * 300 : 0;
       const xOff = drift ? 100 + m * 150 + Math.random() * 200 : 0;
       if (delay > 0) {
         mirrorQueue.push({ executeAt: performance.now() + delay, newStroke: true, channel: m });
       }
+      const color = hueColors ? hueColors[Math.floor(Math.random() * hueColors.length)] : null;
+      if (color) buildDabFor(mirrorDabCvs[m], color);
       return {
         xOff,
+        color,
         yScale: 0.3 + Math.random() * 1.2,
         pScale: 0.15 + Math.random() * 0.8,
         vScale: 0.3 + Math.random() * 1.2,
@@ -559,8 +672,9 @@
 
   function onMove(e) {
     updateHUD(e);
-    cur = strokes.get(e.pointerId);
-    if (!cur || !cur.active) return;
+    const s = strokes.get(e.pointerId);
+    if (!s || !s.active) return;
+    cur = s;
     e.preventDefault();
 
     const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
@@ -653,8 +767,9 @@
   }
 
   function onUp(e) {
-    cur = strokes.get(e.pointerId);
-    if (!cur) return;
+    const s = strokes.get(e.pointerId);
+    if (!s) return;
+    cur = s;
 
     if (cur.active && brush.inertia > 0 && cur.velocity > 0.01) {
       const dx = cur.smoothX - cur.prevX;
@@ -684,6 +799,7 @@
           t: i / numRunners,
           speed: 0.002 + Math.random() * 0.004,
           size: 1.5 + Math.random() * 2.5,
+          z: 0.2 + Math.random() * 0.8,
         });
       }
       flowPaths.push(path);
@@ -709,35 +825,68 @@
 
     if (brush.scrollSpeed > 0) {
       scrollAccum += brush.scrollSpeed;
-      const shift = Math.round(brush.scrollSpeed * dpr); // integer pixels to prevent sub-pixel ghosting
-      if (shift > 0) {
-        sctx.save();
-        sctx.setTransform(1, 0, 0, 1, 0, 0);
-        sctx.globalCompositeOperation = 'copy';
-        sctx.drawImage(score, -shift, 0);
-        sctx.globalCompositeOperation = 'source-over';
-        // Clear the revealed strip on the right to prevent ghost artifacts
-        sctx.clearRect(score.width - shift, 0, shift, score.height);
-        sctx.restore();
-      }
-      const cssShift = shift / dpr; // actual CSS-pixel shift (matches score canvas)
-      for (const s of strokes.values()) {
-        if (s.active) {
-          s.prevX -= cssShift;
-          s.smoothX -= cssShift;
+      const baseShift = Math.round(brush.scrollSpeed * dpr);
+
+      if (baseShift > 0) {
+        if (parallaxEnabled && trackBounds.length === 3) {
+          // Per-track parallax scrolling
+          const mid01 = Math.round((trackBounds[0].bot + trackBounds[1].top) / 2 * dpr);
+          const mid12 = Math.round((trackBounds[1].bot + trackBounds[2].top) / 2 * dpr);
+          const regions = [
+            [0, mid01, PARALLAX_SPEEDS[0]],
+            [mid01, mid12, PARALLAX_SPEEDS[1]],
+            [mid12, score.height, PARALLAX_SPEEDS[2]],
+          ];
+          sctx.save();
+          sctx.setTransform(1, 0, 0, 1, 0, 0);
+          for (const [top, bot, speed] of regions) {
+            const rShift = Math.round(baseShift * speed);
+            if (rShift <= 0) continue;
+            sctx.save();
+            sctx.beginPath();
+            sctx.rect(0, top, score.width, bot - top);
+            sctx.clip();
+            sctx.globalCompositeOperation = 'copy';
+            sctx.drawImage(score, -rShift, 0);
+            sctx.globalCompositeOperation = 'source-over';
+            sctx.clearRect(score.width - rShift, 0, rShift, score.height);
+            sctx.restore();
+          }
+          sctx.restore();
+        } else {
+          sctx.save();
+          sctx.setTransform(1, 0, 0, 1, 0, 0);
+          sctx.globalCompositeOperation = 'copy';
+          sctx.drawImage(score, -baseShift, 0);
+          sctx.globalCompositeOperation = 'source-over';
+          sctx.clearRect(score.width - baseShift, 0, baseShift, score.height);
+          sctx.restore();
         }
       }
+
+      // Adjust active stroke coordinates per track
+      for (const s of strokes.values()) {
+        if (s.active) {
+          const speed = parallaxEnabled && trackBounds.length === 3 ? PARALLAX_SPEEDS[s.sourceTrack] : 1;
+          const sShift = Math.round(baseShift * speed) / dpr;
+          s.prevX -= sShift;
+          s.smoothX -= sShift;
+        }
+      }
+      const cssShift = baseShift / dpr;
       for (const bp of bleedParticles) {
-        bp.x -= shift;
-        bp.px -= shift;
+        const pShift = baseShift * (0.85 + bp.z * 0.15);
+        bp.x -= pShift;
+        bp.px -= pShift;
       }
       for (const fp of flowPaths) {
         for (const pt of fp.points) pt.x -= cssShift;
       }
-      for (const gb of growBranches) { gb.x -= shift; }
+      for (const gb of growBranches) { gb.x -= baseShift * (0.85 + gb.z * 0.15); }
       for (const fp of flockParticles) {
-        fp.x -= shift;
-        for (const tp of fp.trail) tp.x -= shift;
+        const fShift = baseShift * (0.85 + fp.z * 0.15);
+        fp.x -= fShift;
+        for (const tp of fp.trail) tp.x -= fShift;
       }
     }
 
@@ -762,7 +911,7 @@
         const img = bsCtx.getImageData(0, 0, sw, sh);
         const px = img.data;
 
-        const attempts = 70;
+        const attempts = 100;
         for (let a = 0; a < attempts; a++) {
           const sx = Math.floor(Math.random() * sw);
           const sy = Math.floor(Math.random() * sh);
@@ -788,18 +937,18 @@
             const life = 80 + Math.random() * 160;
             bleedParticles.push({ x: ex, y: ey, px: ex, py: ey,
               vx: ndx * speed, vy: ndy * speed + 0.15,
-              life, maxLife: life, size: (1.0 + Math.random() * 3.5) * dpr,
-              alpha: 0.06 + Math.random() * 0.10,
+              life, maxLife: life, size: (1.5 + Math.random() * 4.5) * dpr,
+              alpha: 0.08 + Math.random() * 0.14, z: 0.2 + Math.random() * 0.8,
               wobbleFreq: 0.05 + Math.random() * 0.15, wobbleAmp: 0.4 + Math.random() * 1.2,
               wobblePhase: Math.random() * Math.PI * 2 });
           }
-          if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.2) {
-            const life = 50 + Math.random() * 100;
+          if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.35) {
+            const life = 70 + Math.random() * 140;
             growBranches.push({ x: ex, y: ey,
               angle: Math.atan2(ndy, ndx), speed: (0.4 + Math.random() * 1.0) * dpr,
               curvature: (Math.random() - 0.5) * 0.1,
-              life, maxLife: life, size: (0.5 + Math.random() * 1.2) * dpr,
-              branchProb: 0.02 + Math.random() * 0.03 });
+              life, maxLife: life, size: (0.8 + Math.random() * 1.8) * dpr,
+              z: 0.2 + Math.random() * 0.8, branchProb: 0.02 + Math.random() * 0.03 });
           }
           if (flockEnabled && flockParticles.length < MAX_FLOCK && Math.random() < 0.4) {
             const speed = (1 + Math.random() * 1.5) * dpr;
@@ -808,7 +957,7 @@
             flockParticles.push({ x: ex, y: ey,
               vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
               wander: angle, life, maxLife: life, size: (0.8 + Math.random() * 1.5) * dpr,
-              trail: [{ x: ex, y: ey }] });
+              z: 0.2 + Math.random() * 0.8, trail: [{ x: ex, y: ey }] });
           }
         }
       }
@@ -825,14 +974,15 @@
         const p = bleedParticles[i];
         p.px = p.x; p.py = p.y;
         p.wobblePhase += p.wobbleFreq;
-        p.vx += (Math.random() - 0.5) * 0.25 + Math.sin(p.wobblePhase) * p.wobbleAmp * 0.08;
-        p.vy += (Math.random() - 0.5) * 0.25 + Math.cos(p.wobblePhase * 1.3) * p.wobbleAmp * 0.06;
-        p.vy += 0.015; p.vx *= 0.97; p.vy *= 0.97;
+        const zW = 0.5 + p.z * 0.5;
+        p.vx += (Math.random() - 0.5) * 0.25 + Math.sin(p.wobblePhase) * p.wobbleAmp * 0.08 * zW;
+        p.vy += (Math.random() - 0.5) * 0.25 + Math.cos(p.wobblePhase * 1.3) * p.wobbleAmp * 0.06 * zW;
+        p.vy += 0.015 * (0.3 + p.z * 0.7); p.vx *= 0.97; p.vy *= 0.97;
         p.x += p.vx; p.y += p.vy; p.life--;
         if (p.life <= 0 || p.x < -50) { bleedParticles.splice(i, 1); continue; }
         const lifePct = p.life / p.maxLife;
-        sctx.globalAlpha = p.alpha * lifePct * lifePct;
-        sctx.lineWidth = p.size * (0.3 + lifePct * 0.7);
+        sctx.globalAlpha = p.alpha * lifePct * lifePct * (0.3 + p.z * 0.7);
+        sctx.lineWidth = p.size * (0.3 + lifePct * 0.7) * (0.4 + p.z * 0.6);
         sctx.beginPath(); sctx.moveTo(p.px, p.py); sctx.lineTo(p.x, p.y); sctx.stroke();
         if (Math.random() < 0.07 && bleedParticles.length < MAX_BLEED_PARTICLES) {
           const ba = Math.atan2(p.vy, p.vx) + (Math.random() - 0.5) * Math.PI * 0.8;
@@ -841,6 +991,7 @@
           bleedParticles.push({ x: p.x, y: p.y, px: p.x, py: p.y,
             vx: Math.cos(ba) * bs, vy: Math.sin(ba) * bs + 0.06,
             life: bl, maxLife: bl, size: p.size * 0.7, alpha: p.alpha * 0.7,
+            z: p.z * (0.8 + Math.random() * 0.2),
             wobbleFreq: 0.06 + Math.random() * 0.12, wobbleAmp: 0.3 + Math.random() * 0.8,
             wobblePhase: Math.random() * Math.PI * 2 });
         }
@@ -865,8 +1016,8 @@
         g.life--;
         if (g.life <= 0 || g.x < -20) { growBranches.splice(i, 1); continue; }
         const lifePct = g.life / g.maxLife;
-        sctx.globalAlpha = Math.min(lifePct * 3, 1) * lifePct * lifePct * 0.4;
-        sctx.lineWidth = g.size * (0.2 + lifePct * 0.6);
+        sctx.globalAlpha = Math.min(lifePct * 3, 1) * lifePct * lifePct * 0.6 * (0.3 + g.z * 0.7);
+        sctx.lineWidth = g.size * (0.2 + lifePct * 0.6) * (0.4 + g.z * 0.6);
         sctx.beginPath(); sctx.moveTo(px, py); sctx.lineTo(g.x, g.y); sctx.stroke();
         if (Math.random() < g.branchProb && growBranches.length < MAX_GROW && lifePct > 0.2) {
           const side = Math.random() < 0.5 ? 1 : -1;
@@ -876,6 +1027,7 @@
             speed: g.speed * (0.6 + Math.random() * 0.3),
             curvature: (Math.random() - 0.5) * 0.08,
             life: cl, maxLife: cl, size: g.size * (0.5 + Math.random() * 0.3),
+            z: g.z * (0.85 + Math.random() * 0.15),
             branchProb: g.branchProb * 0.4 });
           g.branchProb *= 0.5;
         }
@@ -895,10 +1047,13 @@
         for (let j = 0; j < flockParticles.length; j++) {
           if (i === j) continue;
           const o = flockParticles[j];
+          const dz = Math.abs(b.z - o.z);
+          if (dz > 0.3) continue;
+          const zInf = 1 - dz / 0.3;
           const ddx = b.x - o.x, ddy = b.y - o.y, d = Math.hypot(ddx, ddy);
-          if (d < SEP_R && d > 0) { sx += ddx / d / d; sy += ddy / d / d; sc++; }
-          if (d < ALI_R) { ax += o.vx; ay += o.vy; ac++; }
-          if (d < COH_R) { cx += o.x; cy += o.y; cc++; }
+          if (d < SEP_R && d > 0) { sx += ddx / d / d * zInf; sy += ddy / d / d * zInf; sc++; }
+          if (d < ALI_R) { ax += o.vx * zInf; ay += o.vy * zInf; ac++; }
+          if (d < COH_R) { cx += o.x * zInf; cy += o.y * zInf; cc++; }
         }
         b.wander += (Math.random() - 0.5) * 0.25;
         let fx = Math.cos(b.wander) * 0.05 + (Math.random() - 0.5) * 0.3, fy = Math.sin(b.wander) * 0.05 + (Math.random() - 0.5) * 0.3;
@@ -965,6 +1120,9 @@
           const rx = p0.x + (p1.x - p0.x) * frac;
           const ry = p0.y + (p1.y - p0.y) * frac;
 
+          const rzS = 0.4 + runner.z * 0.6;
+          const rzA = 0.3 + runner.z * 0.7;
+
           // Comet trail (6 trailing dots)
           for (let j = 1; j <= 6; j++) {
             let tt = runner.t - runner.speed * j * 5;
@@ -977,22 +1135,22 @@
             const tx = tp0.x + (tp1.x - tp0.x) * tf;
             const ty = tp0.y + (tp1.y - tp0.y) * tf;
             const fade = 1 - j / 7;
-            ctx.globalAlpha = fade * 0.4;
+            ctx.globalAlpha = fade * 0.4 * rzA;
             ctx.beginPath();
-            ctx.arc(tx, ty, runner.size * fade, 0, Math.PI * 2);
+            ctx.arc(tx, ty, runner.size * fade * rzS, 0, Math.PI * 2);
             ctx.fill();
           }
 
           // Soft glow halo
-          ctx.globalAlpha = 0.15;
+          ctx.globalAlpha = 0.15 * rzA;
           ctx.beginPath();
-          ctx.arc(rx, ry, runner.size * 5, 0, Math.PI * 2);
+          ctx.arc(rx, ry, runner.size * 5 * rzS, 0, Math.PI * 2);
           ctx.fill();
 
           // Bright core
-          ctx.globalAlpha = 0.9;
+          ctx.globalAlpha = 0.9 * rzA;
           ctx.beginPath();
-          ctx.arc(rx, ry, runner.size, 0, Math.PI * 2);
+          ctx.arc(rx, ry, runner.size * rzS, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -1009,11 +1167,13 @@
         const t = b.trail;
         if (t.length < 2) continue;
         const lp = b.life / b.maxLife;
-        const headAlpha = Math.min(lp * 5, 1) * lp * 0.8;
+        const fzA = 0.3 + b.z * 0.7;
+        const fzS = 0.4 + b.z * 0.6;
+        const headAlpha = Math.min(lp * 5, 1) * lp * 0.8 * fzA;
         for (let k = 1; k < t.length; k++) {
           const fade = k / t.length; // 0 at tail, 1 at head
           ctx.globalAlpha = headAlpha * fade * fade;
-          ctx.lineWidth = b.size * (0.2 + fade * 0.8);
+          ctx.lineWidth = b.size * (0.2 + fade * 0.8) * fzS;
           ctx.beginPath();
           ctx.moveTo(t[k - 1].x, t[k - 1].y);
           ctx.lineTo(t[k].x, t[k].y);
@@ -1106,13 +1266,6 @@
     });
   });
 
-  // Trail toggle
-  const btnTrail = document.getElementById('btn-trail');
-  btnTrail.addEventListener('click', () => {
-    trailEnabled = !trailEnabled;
-    btnTrail.classList.toggle('active', trailEnabled);
-  });
-
   updatePreview();
 
   /* ════════════════════════════════════════════════
@@ -1138,7 +1291,7 @@
   let lastPenDown = 0;
 
   function randomizeBrush() {
-    const types = ['normal', 'splatter', 'particle'];
+    const types = ['normal', 'splatter', 'particle', 'silk'];
     const type = types[Math.floor(Math.random() * types.length)];
     brush.type = type;
     document.querySelectorAll('.bt-btn[data-type]').forEach(b =>
@@ -1232,6 +1385,24 @@
   btnDrift.addEventListener('click', () => {
     brush.mirrorDrift = !brush.mirrorDrift;
     btnDrift.classList.toggle('active', brush.mirrorDrift);
+  });
+
+  const btnHue = document.getElementById('btn-hue');
+  btnHue.addEventListener('click', () => {
+    mirrorHueEnabled = !mirrorHueEnabled;
+    btnHue.classList.toggle('active', mirrorHueEnabled);
+  });
+
+  const btnWild = document.getElementById('btn-wild');
+  btnWild.addEventListener('click', () => {
+    mirrorWild = !mirrorWild;
+    btnWild.classList.toggle('active', mirrorWild);
+  });
+
+  const btnParallax = document.getElementById('btn-parallax');
+  btnParallax.addEventListener('click', () => {
+    parallaxEnabled = !parallaxEnabled;
+    btnParallax.classList.toggle('active', parallaxEnabled);
   });
 
   const btnFlow = document.getElementById('btn-flow');
@@ -1334,6 +1505,9 @@
     switch (e.key.toLowerCase()) {
       case 'm': btnMirror.click(); break;
       case 'd': btnDrift.click(); break;
+      case 'h': btnHue.click(); break;
+      case 'w': btnWild.click(); break;
+      case 'x': btnParallax.click(); break;
       case 'f': btnFlow.click(); break;
       case 'b': btnBleed.click(); break;
       case 'p': btnPause.click(); break;
@@ -1344,6 +1518,7 @@
       case '1': document.querySelector('.bt-btn[data-type="normal"]').click(); break;
       case '2': document.querySelector('.bt-btn[data-type="splatter"]').click(); break;
       case '3': document.querySelector('.bt-btn[data-type="particle"]').click(); break;
+      case '4': document.querySelector('.bt-btn[data-type="silk"]').click(); break;
     }
   });
 

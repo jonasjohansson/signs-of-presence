@@ -64,6 +64,8 @@
   const PARALLAX_SPEEDS = [0.75, 1.0, 1.35];
   let mirrorHueEnabled = false;
   let mirrorWild = false;
+  let shakeEnabled = false;
+  let shakeIntensity = 0;
   let lanes = [];
   let trackBounds = [];
 
@@ -143,6 +145,8 @@
     score.height = H * dpr;
     bleedSample.width = Math.ceil(W * dpr / BLEED_SCALE);
     bleedSample.height = Math.ceil(H * dpr / BLEED_SCALE);
+    parallaxTmp.width = W * dpr;
+    parallaxTmp.height = H * dpr;
 
     if (tmp.width > 0 && tmp.height > 0)
       sctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, 0, 0, score.width, score.height);
@@ -270,7 +274,7 @@
   let bleedEnabled = false;
   let bleedParticles = [];
   let bleedFrame = 0;
-  const MAX_BLEED_PARTICLES = 1200;
+  const MAX_BLEED_PARTICLES = 1000;
 
   let flowEnabled = false;
   const flowPaths = [];
@@ -278,7 +282,7 @@
 
   let growEnabled = false;
   let growBranches = [];
-  const MAX_GROW = 500;
+  const MAX_GROW = 400;
 
   let flockEnabled = false;
   let flockParticles = [];
@@ -288,6 +292,8 @@
   const BLEED_SCALE = 4;
   const bleedSample = document.createElement('canvas');
   const bsCtx = bleedSample.getContext('2d', { willReadFrequently: true });
+  const parallaxTmp = document.createElement('canvas');
+  const ptCtx = parallaxTmp.getContext('2d');
 
   function stamp(x, y, pressure, velocity, angle, aspect, taperMul) {
     let r = computeRadius(pressure, velocity);
@@ -828,40 +834,29 @@
       const baseShift = Math.round(brush.scrollSpeed * dpr);
 
       if (baseShift > 0) {
+        sctx.save();
+        sctx.setTransform(1, 0, 0, 1, 0, 0);
         if (parallaxEnabled && trackBounds.length === 3) {
-          // Per-track parallax scrolling
+          // Snapshot score into temp buffer, then redraw each region shifted
+          ptCtx.clearRect(0, 0, parallaxTmp.width, parallaxTmp.height);
+          ptCtx.drawImage(score, 0, 0);
+          sctx.clearRect(0, 0, score.width, score.height);
           const mid01 = Math.round((trackBounds[0].bot + trackBounds[1].top) / 2 * dpr);
           const mid12 = Math.round((trackBounds[1].bot + trackBounds[2].top) / 2 * dpr);
-          const regions = [
-            [0, mid01, PARALLAX_SPEEDS[0]],
-            [mid01, mid12, PARALLAX_SPEEDS[1]],
-            [mid12, score.height, PARALLAX_SPEEDS[2]],
-          ];
-          sctx.save();
-          sctx.setTransform(1, 0, 0, 1, 0, 0);
+          const regions = [[0, mid01, PARALLAX_SPEEDS[0]], [mid01, mid12, PARALLAX_SPEEDS[1]], [mid12, score.height, PARALLAX_SPEEDS[2]]];
           for (const [top, bot, speed] of regions) {
             const rShift = Math.round(baseShift * speed);
-            if (rShift <= 0) continue;
-            sctx.save();
-            sctx.beginPath();
-            sctx.rect(0, top, score.width, bot - top);
-            sctx.clip();
-            sctx.globalCompositeOperation = 'copy';
-            sctx.drawImage(score, -rShift, 0);
-            sctx.globalCompositeOperation = 'source-over';
-            sctx.clearRect(score.width - rShift, 0, rShift, score.height);
-            sctx.restore();
+            const h = bot - top;
+            const srcW = score.width - rShift;
+            if (srcW > 0) sctx.drawImage(parallaxTmp, rShift, top, srcW, h, 0, top, srcW, h);
           }
-          sctx.restore();
         } else {
-          sctx.save();
-          sctx.setTransform(1, 0, 0, 1, 0, 0);
           sctx.globalCompositeOperation = 'copy';
           sctx.drawImage(score, -baseShift, 0);
           sctx.globalCompositeOperation = 'source-over';
           sctx.clearRect(score.width - baseShift, 0, baseShift, score.height);
-          sctx.restore();
         }
+        sctx.restore();
       }
 
       // Adjust active stroke coordinates per track
@@ -911,7 +906,7 @@
         const img = bsCtx.getImageData(0, 0, sw, sh);
         const px = img.data;
 
-        const attempts = 100;
+        const attempts = 80;
         for (let a = 0; a < attempts; a++) {
           const sx = Math.floor(Math.random() * sw);
           const sy = Math.floor(Math.random() * sh);
@@ -942,7 +937,7 @@
               wobbleFreq: 0.05 + Math.random() * 0.15, wobbleAmp: 0.4 + Math.random() * 1.2,
               wobblePhase: Math.random() * Math.PI * 2 });
           }
-          if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.35) {
+          if (growEnabled && growBranches.length < MAX_GROW && Math.random() < 0.3) {
             const life = 70 + Math.random() * 140;
             growBranches.push({ x: ex, y: ey,
               angle: Math.atan2(ndy, ndx), speed: (0.4 + Math.random() * 1.0) * dpr,
@@ -1069,12 +1064,29 @@
       }
     }
 
+    // Pressure-driven screen shake
+    if (shakeEnabled) {
+      let maxP = 0;
+      for (const s of strokes.values()) {
+        if (s.active) maxP = Math.max(maxP, s.smoothP);
+      }
+      shakeIntensity += (maxP * maxP * 18 * dpr - shakeIntensity) * 0.3;
+    } else {
+      shakeIntensity *= 0.85;
+    }
+
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.drawImage(score, 0, 0);
+    if (shakeIntensity > 0.5) {
+      ctx.drawImage(score,
+        (Math.random() - 0.5) * 2 * shakeIntensity,
+        (Math.random() - 0.5) * 2 * shakeIntensity);
+    } else {
+      ctx.drawImage(score, 0, 0);
+    }
 
     ctx.restore();
 
@@ -1405,6 +1417,12 @@
     btnParallax.classList.toggle('active', parallaxEnabled);
   });
 
+  const btnShake = document.getElementById('btn-shake');
+  btnShake.addEventListener('click', () => {
+    shakeEnabled = !shakeEnabled;
+    btnShake.classList.toggle('active', shakeEnabled);
+  });
+
   const btnFlow = document.getElementById('btn-flow');
   btnFlow.addEventListener('click', () => {
     flowEnabled = !flowEnabled;
@@ -1508,6 +1526,7 @@
       case 'h': btnHue.click(); break;
       case 'w': btnWild.click(); break;
       case 'x': btnParallax.click(); break;
+      case 's': btnShake.click(); break;
       case 'f': btnFlow.click(); break;
       case 'b': btnBleed.click(); break;
       case 'p': btnPause.click(); break;
